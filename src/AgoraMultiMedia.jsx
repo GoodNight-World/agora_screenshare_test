@@ -80,6 +80,27 @@ const AgoraMultiMedia = () => {
       }
     });
 
+    // 디버깅을 위한 연결 상태 모니터링
+    agoraClient.on('connection-state-change', (curState, revState, reason) => {
+      console.log(`연결 상태 변경: ${revState} → ${curState}, 이유: ${reason}`);
+      
+      // Unity 클라이언트 연결 확인
+      if (curState === 'CONNECTED') {
+        console.log('Unity 클라이언트가 연결될 수 있는 상태입니다');
+      }
+    });
+
+    // 원격 사용자 감지 (Unity 클라이언트 감지)
+    agoraClient.on('user-joined', (user) => {
+      console.log(`새로운 사용자 참여: ${user.uid} (Unity 클라이언트일 수 있음)`);
+    });
+
+    // 네트워크 품질 모니터링
+    // agoraClient.on('network-quality', (stats) => {
+    //   // Unity로 전송되는 품질 확인
+    //   console.log('네트워크 품질:', stats);
+    // });
+
     agoraClient.on('user-left', (user) => {
       console.log(`사용자 ${user.uid}가 채널을 떠났습니다.`);
       setRemoteUsers(prev => prev.filter(u => u.uid !== user.uid));
@@ -158,7 +179,7 @@ const AgoraMultiMedia = () => {
     }
   };
 
-// 개선된 화면 공유 함수 - 안정성 향상
+// 개선된 화면 공유 함수 - 안정성 향상 (Unity 수신을 고려)
 const startScreenShare = async () => {
   if (!client || !isJoined) {
     alert('먼저 채널에 참여해주세요.');
@@ -413,7 +434,7 @@ const monitorScreenTrack = () => {
 
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
-      <h1>Agora 멀티미디어 통합 데모</h1>
+      <h1>VEATRA 강의실 멀티미디어 통합관리</h1>
       
       {/* 설정 섹션 */}
       <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
@@ -516,7 +537,7 @@ const monitorScreenTrack = () => {
             )}
 
             {/* 카메라 버튼 */}
-            <button 
+            {/* <button 
               onClick={isCameraEnabled ? stopCamera : startCamera}
               style={{ 
                 padding: '10px 20px', 
@@ -528,7 +549,7 @@ const monitorScreenTrack = () => {
               }}
             >
               {isCameraEnabled ? '카메라 끄기' : '카메라 켜기'}
-            </button>
+            </button> */}
           </div>
         )}
       </div>
@@ -540,7 +561,7 @@ const monitorScreenTrack = () => {
           <div>UID: {uid || 'N/A'}</div>
           <div>화면 공유: {isSharing ? '✅ 진행중' : '❌ 중지됨'}</div>
           <div>마이크: {isAudioEnabled ? (localAudioTrack?.enabled ? '🎤 활성' : '🔇 음소거') : '❌ 비활성'}</div>
-          <div>카메라: {isCameraEnabled ? '📹 활성' : '❌ 비활성'}</div>
+          {/* <div>카메라: {isCameraEnabled ? '📹 활성' : '❌ 비활성'}</div> */}
           <div>원격 사용자: {remoteUsers.length}명</div>
           {localScreenTrack && (
             <div>화면공유 트랙: {localScreenTrack.isPlaying ? '▶️ 재생중' : '⏸️ 정지'}</div>
@@ -578,7 +599,7 @@ const monitorScreenTrack = () => {
           </div>
 
           {/* 카메라 */}
-          <div>
+          {/* <div>
             <h3>내 카메라</h3>
             <div 
               ref={localCameraRef}
@@ -597,7 +618,7 @@ const monitorScreenTrack = () => {
             >
               {!isCameraEnabled && '카메라가 비활성화됨'}
             </div>
-          </div>
+          </div> */}
         </div>
       </div>
 
@@ -652,7 +673,7 @@ const monitorScreenTrack = () => {
         <ul>
           <li>🖥️ <strong>화면 공유</strong>: 전체 화면이나 특정 애플리케이션 공유 가능</li>
           <li>🎤 <strong>음성 채팅</strong>: 마이크 켜기/끄기, 음소거 기능</li>
-          <li>📹 <strong>비디오 채팅</strong>: 웹캠을 통한 영상 통화</li>
+          {/* <li>📹 <strong>비디오 채팅</strong>: 웹캠을 통한 영상 통화</li> */}
           <li>👥 <strong>다중 사용자</strong>: 여러 명이 동시에 참여 가능</li>
           <li>🔄 <strong>실시간 동기화</strong>: 모든 기능이 실시간으로 동기화됨</li>
         </ul>
