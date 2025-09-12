@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import AgoraRTC from 'agora-rtc-sdk-ng';
+import { io } from 'socket.io-client';
 
 // Agora 설정
 const APP_ID = process.env.REACT_APP_AGORA_APP_ID;
@@ -19,7 +20,7 @@ const AgoraMultiMedia = () => {
   const [isAudioEnabled, setIsAudioEnabled] = useState(false);
   const [isCameraEnabled, setIsCameraEnabled] = useState(false);
   const [isJoined, setIsJoined] = useState(false);
-  const [channelName, setChannelName] = useState('Lobby');
+  const [channelName, setChannelName] = useState('classroom');
   const [uid, setUid] = useState(null);
 
   const localVideoRef = useRef(null);
@@ -27,6 +28,14 @@ const AgoraMultiMedia = () => {
   const remoteVideoRefs = useRef({});
   const remoteAudioRefs = useRef({});
 
+  // 소켓 및 채팅 관련 상태
+  const [socket, setSocket] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [roomId, setRoomId] = useState('classroom');
+  const [userCount, setUserCount] = useState(null);
+  const [isChatLocked, setIsChatLocked] = useState(false);
+
+  // Agora 클라이언트 초기화 및 이벤트 설정
   useEffect(() => {
     // Agora 클라이언트 초기화
     const agoraClient = AgoraRTC.createClient({ 
@@ -101,6 +110,7 @@ const AgoraMultiMedia = () => {
     //   console.log('네트워크 품질:', stats);
     // });
 
+    // 사용자 채널 퇴장시 처리
     agoraClient.on('user-left', (user) => {
       console.log(`사용자 ${user.uid}가 채널을 떠났습니다.`);
       setRemoteUsers(prev => prev.filter(u => u.uid !== user.uid));
@@ -135,13 +145,15 @@ const AgoraMultiMedia = () => {
           stopScreenShare();
         }
       }, 2000);
-  }
-  
-  return () => {
-    if (interval) clearInterval(interval);
-  };
-}, [localScreenTrack, isSharing]);
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [localScreenTrack, isSharing]);
 
+
+  // 채널 참여
   const joinChannel = async () => {
     if (!client || !APP_ID) {
       alert('App ID가 설정되지 않았습니다. APP_ID를 입력해주세요.');
@@ -149,16 +161,60 @@ const AgoraMultiMedia = () => {
     }
 
     try {
+      // 채널 참여
       const generatedUid = await client.join(APP_ID, channelName, TOKEN, '1001');
       setUid(generatedUid);
       setIsJoined(true);
       console.log('채널 참여 성공:', generatedUid);
+
+      // 채팅용 백엔드 소켓 연결
+      const newSocket = io('http://localhost:3000');
+      setSocket(newSocket);
+
+      // 소켓 이벤트 리스너 설정
+      // 연결 성공 시
+      newSocket.on('connect', () => {
+        console.log('채팅 서버에 연결됨:', newSocket.id);
+        newSocket.emit('joinClassroom', { roomId: "classroom", nickname: "교수", accountType: "PROFESSOR" });
+      });
+
+      // 연결 후 룸 정보 수신
+      newSocket.on('roomInfo', (payload) => {
+        setRoomId(payload.roomId);
+        setUserCount(payload.count);
+        if(payload.locked) setIsChatLocked(payload.locked);
+        console.log('룸 정보: ', payload);
+      });
+
+      // 새로운 채팅 메세지 수신
+      newSocket.on('classChatMessage', (payload) => {
+        const li = document.createElement('li');
+        li.className = 'chat-message';
+        li.textContent = `${payload.nickname}: ${payload.message}`;
+        document.getElementById('chat').appendChild(li);
+        setMessages(prev => [...prev, payload]);
+        console.log('새 채팅 메시지: ', payload);
+      });
+
+      // 채팅 잠금 상태
+      newSocket.on('chat:lockState', (payload) => {
+        setIsChatLocked(payload.locked);
+        console.log('채팅 잠금 상태 변경: ', isChatLocked);
+      });
+
+      // 연결 해제 시
+      newSocket.on('disconnect', () => {
+        console.log('채팅 서버와 연결 해제됨');
+        setSocket(null);
+      });
+
     } catch (error) {
       console.error('채널 참여 실패:', error);
-      alert('채널 참여에 실패했습니다.');
+      alert('채널 참여에 실패했습니다.');                        
     }
   };
 
+  // 채널 떠나기
   const leaveChannel = async () => {
     if (!client) return;
 
@@ -174,175 +230,181 @@ const AgoraMultiMedia = () => {
       setUid(null);
       setRemoteUsers([]);
       console.log('채널을 떠났습니다.');
+
+      // 소켓 연결 해제
+      if (socket && socket.connected) {
+        socket.disconnect();
+        console.log("채팅 서버 연결 해제됨");
+      }
     } catch (error) {
       console.error('채널 떠나기 실패:', error);
     }
   };
 
-// 개선된 화면 공유 함수 - 안정성 향상 (Unity 수신을 고려)
-const startScreenShare = async () => {
-  if (!client || !isJoined) {
-    alert('먼저 채널에 참여해주세요.');
-    return;
-  }
+  // 개선된 화면 공유 함수 - 안정성 향상 (Unity 수신을 고려)
+  const startScreenShare = async () => {
+    if (!client || !isJoined) {
+      alert('먼저 채널에 참여해주세요.');
+      return;
+    }
 
-  try {
-    console.log('화면 공유 시작 시도...');
-    
-    const result = await AgoraRTC.createScreenVideoTrack({
-      encoderConfig: {
-        width: { ideal: 1920, max: 1920 },
-        height: { ideal: 1080, max: 1080 },
-        frameRate: 15,
-        bitrateMin: 1000,
-        bitrateMax: 3000
-      },
-      optimizationMode: "detail"
-    }, "auto");
+    try {
+      console.log('화면 공유 시작 시도...');
+      
+      const result = await AgoraRTC.createScreenVideoTrack({
+        encoderConfig: {
+          width: { ideal: 1920, max: 1920 },
+          height: { ideal: 1080, max: 1080 },
+          frameRate: 15,
+          bitrateMin: 1000,
+          bitrateMax: 3000
+        },
+        optimizationMode: "detail"
+      }, "auto");
 
-    const screenTrack = Array.isArray(result) ? result[0] : result;
-    
-    console.log('화면 트랙 생성 완료:', {
-      trackId: screenTrack.getTrackId(),
-      enabled: screenTrack.enabled,
-      muted: screenTrack.muted
-    });
+      const screenTrack = Array.isArray(result) ? result[0] : result;
+      
+      console.log('화면 트랙 생성 완료:', {
+        trackId: screenTrack.getTrackId(),
+        enabled: screenTrack.enabled,
+        muted: screenTrack.muted
+      });
 
-    // 트랙 상태 변경 이벤트 리스너 추가
-    screenTrack.on("track-ended", () => {
-      console.log('화면 공유가 종료됨 (사용자 취소 또는 시스템)');
-      stopScreenShare();
-    });
+      // 트랙 상태 변경 이벤트 리스너 추가
+      screenTrack.on("track-ended", () => {
+        console.log('화면 공유가 종료됨 (사용자 취소 또는 시스템)');
+        stopScreenShare();
+      });
 
-    screenTrack.on("player-status-change", (evt) => {
-      console.log('플레이어 상태 변경:', evt);
-    });
+      screenTrack.on("player-status-change", (evt) => {
+        console.log('플레이어 상태 변경:', evt);
+      });
 
-    // 먼저 채널에 publish (이게 더 안정적)
-    console.log('채널에 화면 트랙 게시 중...');
-    await client.publish(screenTrack);
-    console.log('채널 게시 완료');
+      // 먼저 채널에 publish (이게 더 안정적)
+      console.log('채널에 화면 트랙 게시 중...');
+      await client.publish(screenTrack);
+      console.log('채널 게시 완료');
 
-    // 상태 업데이트
-    setLocalScreenTrack(screenTrack);
-    setIsSharing(true);
+      // 상태 업데이트
+      setLocalScreenTrack(screenTrack);
+      setIsSharing(true);
 
-    // 로컬 재생은 나중에 시도 (선택사항)
-    setTimeout(async () => {
-      if (localVideoRef.current && screenTrack) {
-        try {
-          console.log('로컬 재생 시도...');
-          await screenTrack.play(localVideoRef.current);
-          console.log('로컬 재생 성공');
-          
-          // 비디오 엘리먼트 스타일 조정
-          const videoElement = localVideoRef.current.querySelector('video');
-          if (videoElement) {
-            videoElement.style.width = '100%';
-            videoElement.style.height = '100%';
-            videoElement.style.objectFit = 'contain';
-            videoElement.style.backgroundColor = '#000';
-          }
-        } catch (playError) {
-          console.log('로컬 재생 실패 (정상):', playError.message);
-          // 로컬 재생 실패시 상태 메시지 표시
-          if (localVideoRef.current) {
-            localVideoRef.current.innerHTML = `
-              <div style="
-                display: flex; 
-                align-items: center; 
-                justify-content: center; 
-                height: 100%; 
-                color: white; 
-                font-size: 16px;
-                text-align: center;
-                flex-direction: column;
-                background-color: #1a1a1a;
-              ">
-                <div style="font-size: 24px; margin-bottom: 10px;">🖥️</div>
-                <div>화면 공유 진행 중</div>
-                <div style="font-size: 12px; margin-top: 8px; opacity: 0.8;">
-                  다른 참가자들이 화면을 볼 수 있습니다
+      // 로컬 재생은 나중에 시도 (선택사항)
+      setTimeout(async () => {
+        if (localVideoRef.current && screenTrack) {
+          try {
+            console.log('로컬 재생 시도...');
+            await screenTrack.play(localVideoRef.current);
+            console.log('로컬 재생 성공');
+            
+            // 비디오 엘리먼트 스타일 조정
+            const videoElement = localVideoRef.current.querySelector('video');
+            if (videoElement) {
+              videoElement.style.width = '100%';
+              videoElement.style.height = '100%';
+              videoElement.style.objectFit = 'contain';
+              videoElement.style.backgroundColor = '#000';
+            }
+          } catch (playError) {
+            console.log('로컬 재생 실패 (정상):', playError.message);
+            // 로컬 재생 실패시 상태 메시지 표시
+            if (localVideoRef.current) {
+              localVideoRef.current.innerHTML = `
+                <div style="
+                  display: flex; 
+                  align-items: center; 
+                  justify-content: center; 
+                  height: 100%; 
+                  color: white; 
+                  font-size: 16px;
+                  text-align: center;
+                  flex-direction: column;
+                  background-color: #1a1a1a;
+                ">
+                  <div style="font-size: 24px; margin-bottom: 10px;">🖥️</div>
+                  <div>화면 공유 진행 중</div>
+                  <div style="font-size: 12px; margin-top: 8px; opacity: 0.8;">
+                    다른 참가자들이 화면을 볼 수 있습니다
+                  </div>
+                  <div style="font-size: 10px; margin-top: 4px; opacity: 0.6;">
+                    Track ID: ${screenTrack.getTrackId()}
+                  </div>
                 </div>
-                <div style="font-size: 10px; margin-top: 4px; opacity: 0.6;">
-                  Track ID: ${screenTrack.getTrackId()}
-                </div>
-              </div>
-            `;
+              `;
+            }
           }
         }
+      }, 1000);
+
+    } catch (error) {
+      console.error('화면 공유 시작 실패:', error);
+      setIsSharing(false);
+      
+      if (error.name === 'NotAllowedError') {
+        alert('화면 공유 권한이 거부되었습니다.');
+      } else if (error.name === 'AbortError') {
+        alert('화면 공유가 취소되었습니다.');
+      } else if (error.message.includes('Permission denied')) {
+        alert('화면 공유 권한을 확인해주세요.');
+      } else {
+        alert(`화면 공유 오류: ${error.message}`);
       }
-    }, 1000);
-
-  } catch (error) {
-    console.error('화면 공유 시작 실패:', error);
-    setIsSharing(false);
-    
-    if (error.name === 'NotAllowedError') {
-      alert('화면 공유 권한이 거부되었습니다.');
-    } else if (error.name === 'AbortError') {
-      alert('화면 공유가 취소되었습니다.');
-    } else if (error.message.includes('Permission denied')) {
-      alert('화면 공유 권한을 확인해주세요.');
-    } else {
-      alert(`화면 공유 오류: ${error.message}`);
     }
-  }
-};
+  };
 
-// 개선된 중지 함수
-const stopScreenShare = async () => {
-  if (!localScreenTrack) return;
+  // 개선된 중지 함수
+  const stopScreenShare = async () => {
+    if (!localScreenTrack) return;
 
-  try {
-    console.log('화면 공유 중지 시작...');
-    
-    // 이벤트 리스너 제거
-    localScreenTrack.removeAllListeners();
-    
-    // unpublish 먼저
-    if (client) {
-      await client.unpublish(localScreenTrack);
-      console.log('채널에서 unpublish 완료');
+    try {
+      console.log('화면 공유 중지 시작...');
+      
+      // 이벤트 리스너 제거
+      localScreenTrack.removeAllListeners();
+      
+      // unpublish 먼저
+      if (client) {
+        await client.unpublish(localScreenTrack);
+        console.log('채널에서 unpublish 완료');
+      }
+      
+      // 트랙 중지 및 해제
+      localScreenTrack.stop();
+      localScreenTrack.close();
+      
+      console.log('트랙 정리 완료');
+      
+      // UI 초기화
+      if (localVideoRef.current) {
+        localVideoRef.current.innerHTML = '화면 공유가 시작되지 않음';
+      }
+      
+      setLocalScreenTrack(null);
+      setIsSharing(false);
+      
+    } catch (error) {
+      console.error('화면 공유 중지 실패:', error);
+      // 강제로 상태 초기화
+      setLocalScreenTrack(null);
+      setIsSharing(false);
     }
-    
-    // 트랙 중지 및 해제
-    localScreenTrack.stop();
-    localScreenTrack.close();
-    
-    console.log('트랙 정리 완료');
-    
-    // UI 초기화
-    if (localVideoRef.current) {
-      localVideoRef.current.innerHTML = '화면 공유가 시작되지 않음';
-    }
-    
-    setLocalScreenTrack(null);
-    setIsSharing(false);
-    
-  } catch (error) {
-    console.error('화면 공유 중지 실패:', error);
-    // 강제로 상태 초기화
-    setLocalScreenTrack(null);
-    setIsSharing(false);
-  }
-};
+  };
 
-// 추가: 트랙 상태 모니터링 함수
-const monitorScreenTrack = () => {
-  if (localScreenTrack) {
-    const status = {
-      trackId: localScreenTrack.getTrackId(),
-      enabled: localScreenTrack.enabled,
-      muted: localScreenTrack.muted,
-      isPlaying: localScreenTrack.isPlaying,
-      readyState: localScreenTrack.getMediaStreamTrack()?.readyState
-    };
-    console.log('Screen track status:', status);
-    return status;
-  }
-  return null;
-};
+  // 추가: 트랙 상태 모니터링 함수
+  const monitorScreenTrack = () => {
+    if (localScreenTrack) {
+      const status = {
+        trackId: localScreenTrack.getTrackId(),
+        enabled: localScreenTrack.enabled,
+        muted: localScreenTrack.muted,
+        isPlaying: localScreenTrack.isPlaying,
+        readyState: localScreenTrack.getMediaStreamTrack()?.readyState
+      };
+      console.log('Screen track status:', status);
+      return status;
+    }
+    return null;
+  };
 
   // 오디오 기능
   const startAudio = async () => {
@@ -366,6 +428,7 @@ const monitorScreenTrack = () => {
     }
   };
 
+  // 오디오 중지
   const stopAudio = async () => {
     if (!localAudioTrack) return;
 
@@ -382,6 +445,7 @@ const monitorScreenTrack = () => {
     }
   };
 
+  // 음소거 토글
   const toggleMute = async () => {
     if (!localAudioTrack) return;
     
@@ -415,7 +479,6 @@ const monitorScreenTrack = () => {
       alert('카메라 권한을 확인해주세요.');
     }
   };
-
   const stopCamera = async () => {
     if (!localCameraTrack) return;
 
@@ -431,6 +494,23 @@ const monitorScreenTrack = () => {
       console.error('카메라 비활성화 실패:', error);
     }
   };
+
+  // 채팅 보내기
+  const sendMessage = () => {
+    const messageInput = document.getElementById('message');
+    const message = messageInput.value.trim();
+    if (message && socket && socket.connected) {
+      socket.emit('classChatMessage', message);
+      messageInput.value = '';
+    }
+  }
+
+  // 키보드 이벤트 핸들러
+  const onHandleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      sendMessage();
+    }
+  }
 
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
@@ -582,7 +662,7 @@ const monitorScreenTrack = () => {
             <div 
               ref={localVideoRef}
               style={{ 
-                width: '1080px',
+                width: '1280px',
                 height: '720px',
                 backgroundColor: '#000', 
                 borderRadius: '8px',
@@ -596,6 +676,17 @@ const monitorScreenTrack = () => {
             >
               {!isSharing && '화면 공유가 시작되지 않음'}
             </div>
+          </div>
+
+          {/* 채팅창 */}
+          <div style={{ flex: '1', minWidth: '300px' }}>
+            {isJoined && (
+              <div style={{ height: '720px' }}>
+                <h3>채팅창 ({roomId}) - 사용자 {userCount}명 {isChatLocked ? '🔒' : '🔓'}</h3>
+                <ul id="chat"></ul>
+                <input id="message" type='text' placeholder='채팅 입력 후 Enter' onKeyUp={onHandleKeyPress} style={{ width: '100%', padding: '8px', boxSizing: 'border-box', border: '2px solid' }}/>
+              </div>
+            )}
           </div>
 
           {/* 카메라 */}
