@@ -1,12 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import AgoraRTC from 'agora-rtc-sdk-ng';
 import { io } from 'socket.io-client';
+import { useParams } from 'react-router-dom';
 
 // Agora 설정
 const APP_ID = process.env.REACT_APP_AGORA_APP_ID;
 const TOKEN = process.env.REACT_APP_AGORA_APP_TEMP_TOKEN;
 
 const AgoraMultiMedia = () => {
+
+  // 백엔드 서버 URL
+  const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3000';
+
+  // URL 파라미터에서 사용자 이름 가져오기
+  const { username } = useParams();
+
+  // Agora 클라이언트 상태
   const [client, setClient] = useState(null);
   
   // 트랙 상태
@@ -162,20 +171,24 @@ const AgoraMultiMedia = () => {
 
     try {
       // 채널 참여
-      const generatedUid = await client.join(APP_ID, channelName, TOKEN, '1001');
+      const generatedUid = await client.join(APP_ID, channelName, TOKEN, null);
       setUid(generatedUid);
       setIsJoined(true);
       console.log('채널 참여 성공:', generatedUid);
 
       // 채팅용 백엔드 소켓 연결
-      const newSocket = io('http://localhost:3000');
+      // const newSocket = io('http://localhost:3000');
+      const newSocket = io(`${BACKEND_URL}`, {
+        transports: ['websocket'],
+        secure: false
+      });
       setSocket(newSocket);
 
       // 소켓 이벤트 리스너 설정
       // 연결 성공 시
       newSocket.on('connect', () => {
         console.log('채팅 서버에 연결됨:', newSocket.id);
-        newSocket.emit('joinClassroom', { roomId: "classroom", nickname: "교수", accountType: "PROFESSOR" });
+        newSocket.emit('joinClassroom', { roomId: "classroom", nickname: `${username}`, accountType: "PROFESSOR" });
       });
 
       // 연결 후 룸 정보 수신

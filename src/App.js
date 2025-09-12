@@ -1,13 +1,15 @@
 import logo from './logo.svg';
 import './App.css';
 import AgoraMultiMedia from './AgoraMultiMedia';
-import AgoraTest from './AgoraTest';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
 function App() {
   return (
-    <div className='App'>
-      <AgoraMultiMedia/>
-    </div>
+    <Router>
+      <Routes>
+        <Route path="/:username" element={<AgoraMultiMedia />} />
+      </Routes>
+    </Router>
   );
 }
 
