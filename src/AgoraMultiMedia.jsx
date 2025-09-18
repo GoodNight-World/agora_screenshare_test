@@ -44,6 +44,16 @@ const AgoraMultiMedia = () => {
   const [userCount, setUserCount] = useState(null);
   const [isChatLocked, setIsChatLocked] = useState(false);
 
+  function upsertRemote(uid, patch) {
+    setRemoteUsers(prev => {
+      const i = prev.findIndex(u => u.uid === uid);
+      if (i === -1) return [...prev, { uid, videoTrack: null, audioTrack: null, ...patch }];
+      const next = [...prev];
+      next[i] = { ...next[i], ...patch };
+      return next;
+    });
+  }
+
   // Agora 클라이언트 초기화 및 이벤트 설정
   useEffect(() => {
     // Agora 클라이언트 초기화
@@ -56,45 +66,24 @@ const AgoraMultiMedia = () => {
     // 원격 사용자 이벤트 리스너
     agoraClient.on('user-published', async (user, mediaType) => {
       await agoraClient.subscribe(user, mediaType);
-      
-      console.log(`사용자 ${user.uid}가 ${mediaType}를 게시했습니다.`);
-      
       if (mediaType === 'video') {
-        setRemoteUsers(prev => {
-          const existing = prev.find(u => u.uid === user.uid);
-          if (existing) {
-            return prev.map(u => u.uid === user.uid ? {...u, videoTrack: user.videoTrack} : u);
-          }
-          return [...prev, user];
-        });
-      }
-      
-      if (mediaType === 'audio') {
-        // 오디오 자동 재생
+        upsertRemote(user.uid, { videoTrack: user.videoTrack });
+      } else if (mediaType === 'audio') {
         user.audioTrack.play();
-        setRemoteUsers(prev => {
-          const existing = prev.find(u => u.uid === user.uid);
-          if (existing) {
-            return prev.map(u => u.uid === user.uid ? {...u, audioTrack: user.audioTrack} : u);
-          }
-          return [...prev, user];
-        });
+        upsertRemote(user.uid, { audioTrack: user.audioTrack });
       }
     });
 
+    let videoUnpubTimers = {};
     agoraClient.on('user-unpublished', (user, mediaType) => {
-      console.log(`사용자 ${user.uid}가 ${mediaType} 게시를 중단했습니다.`);
-      
       if (mediaType === 'video') {
-        setRemoteUsers(prev => prev.map(u => 
-          u.uid === user.uid ? {...u, videoTrack: null} : u
-        ));
-      }
-      
-      if (mediaType === 'audio') {
-        setRemoteUsers(prev => prev.map(u => 
-          u.uid === user.uid ? {...u, audioTrack: null} : u
-        ));
+        clearTimeout(videoUnpubTimers[user.uid]);
+        videoUnpubTimers[user.uid] = setTimeout(() => {
+          // 200~400ms 기다렸다가 여전히 재게시가 없으면 null
+          upsertRemote(user.uid, { videoTrack: null });
+        }, 300);
+      } else if (mediaType === 'audio') {
+        upsertRemote(user.uid, { audioTrack: null });
       }
     });
 
@@ -201,12 +190,26 @@ const AgoraMultiMedia = () => {
 
       // 새로운 채팅 메세지 수신
       newSocket.on('classChatMessage', (payload) => {
-        const li = document.createElement('li');
-        li.className = 'chat-message';
-        li.textContent = `${payload.nickname}: ${payload.message}`;
-        document.getElementById('chat').appendChild(li);
-        setMessages(prev => [...prev, payload]);
-        console.log('새 채팅 메시지: ', payload);
+        
+        // 메시지 객체 생성
+        let newMessage = {
+          id: payload.id,
+          email: payload.email,
+          username: payload.username,
+          nickname: payload.nickname,
+          message: payload.message,
+          accountType: payload.accountType,
+          timestamp: payload.timestamp
+        };
+
+        setMessages(prev => [...prev, newMessage]);
+        console.log('새 채팅 메시지: ', newMessage);
+      });
+
+      // 채팅 삭제 이벤트 리스너
+      newSocket.on('chatMessageDeleted', (payload) => {
+        setMessages(prev => prev.filter(msg => msg.id !== payload.id));
+        console.log('채팅 메시지 삭제됨: ', payload.id);
       });
 
       // 채팅 잠금 상태
@@ -227,6 +230,25 @@ const AgoraMultiMedia = () => {
     }
   };
 
+  // 채팅 보내기
+  const sendMessage = () => {
+    const messageInput = document.getElementById('message');
+    const message = messageInput.value.trim();
+    if (message && socket && socket.connected) {
+      socket.emit('classChatMessage', message);
+      messageInput.value = '';
+    }
+  }
+
+  // 채팅 삭제 함수 추가
+  const deleteMessage = (messageId) => {
+    if (socket && socket.connected) {
+      socket.emit('deleteClassChatMessage', { id: messageId });
+    } else {
+      setMessages(prev => prev.filter(msg => msg.id !== messageId));
+    }
+  }
+
   // 채널 떠나기
   const leaveChannel = async () => {
     if (!client) return;
@@ -241,6 +263,7 @@ const AgoraMultiMedia = () => {
       await client.leave();
       setIsJoined(false);
       setUid(null);
+      setMessages([]); // 채팅 초기화
       setRemoteUsers([]);
       console.log('채널을 떠났습니다.');
 
@@ -508,19 +531,9 @@ const AgoraMultiMedia = () => {
     }
   };
 
-  // 채팅 보내기
-  const sendMessage = () => {
-    const messageInput = document.getElementById('message');
-    const message = messageInput.value.trim();
-    if (message && socket && socket.connected) {
-      socket.emit('classChatMessage', message);
-      messageInput.value = '';
-    }
-  }
-
   // 키보드 이벤트 핸들러
   const onHandleKeyPress = (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
       sendMessage();
     }
   }
@@ -664,9 +677,120 @@ const AgoraMultiMedia = () => {
           )}
         </div>
       </div>
+      
+      {/* 원격 사용자 및 채팅 섹션 */}
+      <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start'}}>
+
+        {/* 원격 사용자 섹션 */}
+        {remoteUsers.length > 0 && (
+          <div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
+              {remoteUsers.map(user => (
+                <div key={user.uid} style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '15px' }}>
+                  <h3>사용자 {user.uid}</h3>
+                  <div style={{ marginBottom: '10px' }}>
+                    <span style={{ marginRight: '15px' }}>
+                      📹 비디오: {user.videoTrack ? '✅' : '❌'}
+                    </span>
+                    <span>
+                      🎤 오디오: {user.audioTrack ? '✅' : '❌'}
+                    </span>
+                  </div>
+                  <div 
+                    ref={el => remoteVideoRefs.current[user.uid] = el}
+                    style={{ 
+                      width: '1260px', 
+                      height: '680px',
+                      backgroundColor: '#000', 
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white'
+                    }}
+                  >
+                    {!user.videoTrack && '비디오 없음'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* 채팅창 */}
+        <div style={{ flex: '1', minWidth: '300px' }}>
+          {isJoined && (
+            <div style={{ padding: '0 10px 10px 10px', display: 'flex', flexDirection: 'column', border: '1px solid #000000ff', borderRadius: '8px' }}>
+              <h3 style={{ marginLeft: '10px' }}>채팅창 ({roomId}) - 사용자 {userCount}명 {isChatLocked ? '🔒' : '🔓'}</h3>
+              <div id="chat">
+                {messages.map((msg) => {
+                  // Ensure the map returns JSX so messages render
+                  console.log('Rendering message:', msg);
+                  return (
+                    <div
+                      key={msg.id}
+                      style={{
+                        marginBottom: '8px',
+                        padding: '8px',
+                        backgroundColor: 'white',
+                        borderRadius: '4px',
+                        border: '1px solid #000000ff',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start'
+                      }}
+                    >
+                      {/* 채팅 메세지 */}
+                      <div style={{ flex: '1' }}>
+                        <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '2px' }}>
+                          {msg.nickname}
+                          <span style={{ fontSize: '12px', color: '#999', marginLeft: '8px' }}>
+                            {msg.timestamp}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '14px' }}>{msg.message}</div>
+                      </div>
+
+                      {/* 채팅 메세지 삭제 버튼 */}
+                      <button
+                        onClick={() => deleteMessage(msg.id)}
+                        style={{
+                          marginLeft: '8px',
+                          padding: '4px 8px',
+                          fontSize: '12px',
+                          backgroundColor: '#dc3545',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '3px',
+                          cursor: 'pointer'
+                        }}
+                        title="메세지 삭제"
+                      >
+                        삭제
+                      </button>
+
+                    </div>
+                  );
+                })}
+              </div>
+              <input 
+              id="message" 
+              type='text' 
+              placeholder='채팅 입력 후 Enter' 
+              onKeyUp={onHandleKeyPress} 
+              style={{ width: '100%', padding: '8px', boxSizing: 'border-box', border: '1px solid' }}/>
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      
+
+      
 
       {/* 로컬 비디오 섹션 */}
-      <div style={{ marginBottom: '30px' }}>
+      <div style={{ marginTop: '80px', marginBottom: '30px' }}>
         <h2>내 미디어</h2>
         <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
           {/* 화면 공유 */}
@@ -689,17 +813,6 @@ const AgoraMultiMedia = () => {
             >
               {!isSharing && '화면 공유가 시작되지 않음'}
             </div>
-          </div>
-
-          {/* 채팅창 */}
-          <div style={{ flex: '1', minWidth: '300px' }}>
-            {isJoined && (
-              <div style={{ height: '720px' }}>
-                <h3>채팅창 ({roomId}) - 사용자 {userCount}명 {isChatLocked ? '🔒' : '🔓'}</h3>
-                <ul id="chat"></ul>
-                <input id="message" type='text' placeholder='채팅 입력 후 Enter' onKeyUp={onHandleKeyPress} style={{ width: '100%', padding: '8px', boxSizing: 'border-box', border: '2px solid' }}/>
-              </div>
-            )}
           </div>
 
           {/* 카메라 */}
@@ -725,43 +838,6 @@ const AgoraMultiMedia = () => {
           </div> */}
         </div>
       </div>
-
-      {/* 원격 사용자 섹션 */}
-      {remoteUsers.length > 0 && (
-        <div>
-          <h2>원격 사용자들</h2>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
-            {remoteUsers.map(user => (
-              <div key={user.uid} style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '15px' }}>
-                <h3>사용자 {user.uid}</h3>
-                <div style={{ marginBottom: '10px' }}>
-                  <span style={{ marginRight: '15px' }}>
-                    📹 비디오: {user.videoTrack ? '✅' : '❌'}
-                  </span>
-                  <span>
-                    🎤 오디오: {user.audioTrack ? '✅' : '❌'}
-                  </span>
-                </div>
-                <div 
-                  ref={el => remoteVideoRefs.current[user.uid] = el}
-                  style={{ 
-                    width: '400px', 
-                    height: '300px', 
-                    backgroundColor: '#000', 
-                    borderRadius: '8px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'white'
-                  }}
-                >
-                  {!user.videoTrack && '비디오 없음'}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* 사용 방법 */}
       <div style={{ marginTop: '30px', padding: '15px', backgroundColor: '#d1ecf1', borderRadius: '8px' }}>
