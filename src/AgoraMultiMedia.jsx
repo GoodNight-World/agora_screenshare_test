@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import AgoraRTC from 'agora-rtc-sdk-ng';
 import { io } from 'socket.io-client';
 import { useParams } from 'react-router-dom';
+import ChatHeader from './component/ChatHeader';
+import UserGuide from './component/UserGuide';
+import LocalVideoSection from './component/LocalVideoSection';
 
 // Agora 설정
 const APP_ID = process.env.REACT_APP_AGORA_APP_ID;
@@ -27,6 +30,7 @@ const AgoraMultiMedia = () => {
   const [remoteUsers, setRemoteUsers] = useState([]);
   const [isSharing, setIsSharing] = useState(false);
   const [isAudioEnabled, setIsAudioEnabled] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   const [isCameraEnabled, setIsCameraEnabled] = useState(false);
   const [isJoined, setIsJoined] = useState(false);
   const [channelName, setChannelName] = useState('classroom');
@@ -43,6 +47,7 @@ const AgoraMultiMedia = () => {
   const [roomId, setRoomId] = useState('classroom');
   const [userCount, setUserCount] = useState(null);
   const [isChatLocked, setIsChatLocked] = useState(false);
+
 
   function upsertRemote(uid, patch) {
     setRemoteUsers(prev => {
@@ -102,11 +107,13 @@ const AgoraMultiMedia = () => {
       console.log(`새로운 사용자 참여: ${user.uid} (Unity 클라이언트일 수 있음)`);
     });
 
-    // 네트워크 품질 모니터링
-    // agoraClient.on('network-quality', (stats) => {
-    //   // Unity로 전송되는 품질 확인
-    //   console.log('네트워크 품질:', stats);
-    // });
+    // 토큰 만료전 재발급 이벤트
+    agoraClient.on('token-privilege-will-expire', async () => {
+      const newToken = await fetch(`${BACKEND_URL}/test/agora/test?channel=${channelName}`)
+                            .then(res => res.json())
+                            .then(json => json.data.token);
+      await agoraClient.renewToken(newToken);
+    });
 
     // 사용자 채널 퇴장시 처리
     agoraClient.on('user-left', (user) => {
@@ -160,13 +167,16 @@ const AgoraMultiMedia = () => {
 
     try {
       // 채널 참여
-      const generatedUid = await client.join(APP_ID, channelName, TOKEN, null);
+      const token = await fetch(`${BACKEND_URL}/test/agora/token?channel=${channelName}`)
+                          .then(res => res.json())
+                          .then(json => json.data.token);
+
+      const generatedUid = await client.join(APP_ID, channelName, token, null);
       setUid(generatedUid);
       setIsJoined(true);
       console.log('채널 참여 성공:', generatedUid);
 
       // 채팅용 백엔드 소켓 연결
-      // const newSocket = io('http://localhost:3000');
       const newSocket = io(`${BACKEND_URL}`, {
         transports: ['websocket'],
         secure: false
@@ -215,7 +225,7 @@ const AgoraMultiMedia = () => {
       // 채팅 잠금 상태
       newSocket.on('chat:lockState', (payload) => {
         setIsChatLocked(payload.locked);
-        console.log('채팅 잠금 상태 변경: ', isChatLocked);
+        console.log('채팅 잠금 상태 변경: ', payload.locked);
       });
 
       // 연결 해제 시
@@ -277,7 +287,7 @@ const AgoraMultiMedia = () => {
     }
   };
 
-  // 개선된 화면 공유 함수 - 안정성 향상 (Unity 수신을 고려)
+  // 화면 공유 함수 - 안정성 향상 (Unity 수신을 고려)
   const startScreenShare = async () => {
     if (!client || !isJoined) {
       alert('먼저 채널에 참여해주세요.');
@@ -388,7 +398,7 @@ const AgoraMultiMedia = () => {
     }
   };
 
-  // 개선된 중지 함수
+  // 중지 함수
   const stopScreenShare = async () => {
     if (!localScreenTrack) return;
 
@@ -453,7 +463,6 @@ const AgoraMultiMedia = () => {
       const audioTrack = await AgoraRTC.createMicrophoneAudioTrack({
         encoderConfig: "music_standard",
       });
-
       await client.publish(audioTrack);
       setLocalAudioTrack(audioTrack);
       setIsAudioEnabled(true);
@@ -486,6 +495,7 @@ const AgoraMultiMedia = () => {
     if (!localAudioTrack) return;
     
     await localAudioTrack.setEnabled(!localAudioTrack.enabled);
+    setIsMuted(prev => (!prev));
     console.log(`마이크 ${localAudioTrack.enabled ? '음소거 해제' : '음소거'}`);
   };
 
@@ -535,6 +545,14 @@ const AgoraMultiMedia = () => {
   const onHandleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
       sendMessage();
+    }
+  }
+
+  // 채팅 잠금 이벤트 핸들러
+  const chatLockToggle = (value) => {
+    if (socket && socket.connected) {
+      socket.emit('toggleChatLock', { roomId, locked: value });
+      console.log(`채팅 잠금 상태: ${value}`);
     }
   }
 
@@ -631,14 +649,14 @@ const AgoraMultiMedia = () => {
                 onClick={toggleMute}
                 style={{ 
                   padding: '10px 20px', 
-                  backgroundColor: localAudioTrack?.enabled ? '#fd7e14' : '#6c757d', 
+                  backgroundColor: !isMuted ? '#fd7e14' : '#6c757d', 
                   color: 'white', 
                   border: 'none', 
                   borderRadius: '5px',
                   cursor: 'pointer'
                 }}
               >
-                {localAudioTrack?.enabled ? '음소거' : '음소거 해제'}
+                {!isMuted ? '음소거' : '음소거 해제'}
               </button>
             )}
 
@@ -717,11 +735,20 @@ const AgoraMultiMedia = () => {
           </div>
         )}
         
-        {/* 채팅창 */}
+        {/* 채팅 컨테이너 */}
         <div style={{ flex: '1', minWidth: '300px' }}>
           {isJoined && (
             <div style={{ padding: '0 10px 10px 10px', display: 'flex', flexDirection: 'column', border: '1px solid #000000ff', borderRadius: '8px' }}>
-              <h3 style={{ marginLeft: '10px' }}>채팅창 ({roomId}) - 사용자 {userCount}명 {isChatLocked ? '🔒' : '🔓'}</h3>
+
+              {/* 채팅창 헤더 */}
+              <ChatHeader
+                roomId={roomId}
+                userCount={userCount}
+                isChatLocked={isChatLocked}
+                onLockToggle={chatLockToggle}
+              />
+
+              {/* 채팅창 */}
               <div id="chat">
                 {messages.map((msg) => {
                   // Ensure the map returns JSX so messages render
@@ -774,94 +801,26 @@ const AgoraMultiMedia = () => {
                 })}
               </div>
               <input 
-              id="message" 
-              type='text' 
-              placeholder='채팅 입력 후 Enter' 
-              onKeyUp={onHandleKeyPress} 
-              style={{ width: '100%', padding: '8px', boxSizing: 'border-box', border: '1px solid' }}/>
+                id="message" 
+                type='text' 
+                placeholder='채팅 입력 후 Enter'
+                onKeyUp={onHandleKeyPress} 
+                style={{ width: '100%', padding: '8px', boxSizing: 'border-box', border: '1px solid' }}/>
             </div>
           )}
         </div>
 
       </div>
 
-      
-
-      
-
       {/* 로컬 비디오 섹션 */}
-      <div style={{ marginTop: '80px', marginBottom: '30px' }}>
-        <h2>내 미디어</h2>
-        <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-          {/* 화면 공유 */}
-          <div>
-            <h3>화면 공유</h3>
-            <div 
-              ref={localVideoRef}
-              style={{ 
-                width: '1280px',
-                height: '720px',
-                backgroundColor: '#000', 
-                borderRadius: '8px',
-                position: 'relative',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'white',
-                overflow: 'hidden'
-              }}
-            >
-              {!isSharing && '화면 공유가 시작되지 않음'}
-            </div>
-          </div>
-
-          {/* 카메라 */}
-          {/* <div>
-            <h3>내 카메라</h3>
-            <div 
-              ref={localCameraRef}
-              style={{ 
-                width: '300px', 
-                height: '225px', 
-                backgroundColor: '#000', 
-                borderRadius: '8px',
-                position: 'relative',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'white',
-                overflow: 'hidden'
-              }}
-            >
-              {!isCameraEnabled && '카메라가 비활성화됨'}
-            </div>
-          </div> */}
-        </div>
-      </div>
+      <LocalVideoSection 
+        localVideoRef={localVideoRef}
+        isSharing={isSharing}
+      />
 
       {/* 사용 방법 */}
-      <div style={{ marginTop: '30px', padding: '15px', backgroundColor: '#d1ecf1', borderRadius: '8px' }}>
-        <h3>사용 방법:</h3>
-        <ol>
-          <li><strong>App ID 설정:</strong> 코드 상단의 APP_ID를 실제 Agora App ID로 변경하세요</li>
-          <li><strong>채널 참여:</strong> "채널 참여" 버튼으로 채널에 입장하세요</li>
-          <li><strong>기능 활성화:</strong> 필요한 기능들(화면공유, 마이크, 카메라)을 개별적으로 켜고 끄세요</li>
-          <li><strong>테스트:</strong> 다른 브라우저에서 같은 채널명으로 접속하여 테스트하세요</li>
-        </ol>
-        
-        <h4>주요 특징:</h4>
-        <ul>
-          <li>🖥️ <strong>화면 공유</strong>: 전체 화면이나 특정 애플리케이션 공유 가능</li>
-          <li>🎤 <strong>음성 채팅</strong>: 마이크 켜기/끄기, 음소거 기능</li>
-          {/* <li>📹 <strong>비디오 채팅</strong>: 웹캠을 통한 영상 통화</li> */}
-          <li>👥 <strong>다중 사용자</strong>: 여러 명이 동시에 참여 가능</li>
-          <li>🔄 <strong>실시간 동기화</strong>: 모든 기능이 실시간으로 동기화됨</li>
-        </ul>
+      <UserGuide />
 
-        <p style={{ color: '#856404', marginTop: '10px' }}>
-          <strong>참고:</strong> 모든 기능(화면공유, 음성, 영상)을 같은 채널에서 동시에 사용할 수 있습니다!
-        </p>
-      </div>
     </div>
   );
 };
