@@ -13,7 +13,7 @@ const TOKEN = process.env.REACT_APP_AGORA_APP_TEMP_TOKEN;
 const AgoraMultiMedia = () => {
 
   // 백엔드 서버 URL
-  const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3000';
+  const BACKEND_URL = process.env.BACKEND_URL || 'http://172.30.1.16:3000';
 
   // URL 파라미터에서 사용자 이름 가져오기
   const { username } = useParams();
@@ -166,12 +166,17 @@ const AgoraMultiMedia = () => {
     }
 
     try {
-      // 채널 참여
-      const token = await fetch(`${BACKEND_URL}/test/agora/token?channel=${channelName}`)
-                          .then(res => res.json())
-                          .then(json => json.data.token);
+      console.log(`채널 참여전`)
 
-      const generatedUid = await client.join(APP_ID, channelName, token, null);
+      // 채널 참여
+      const { uid, token } = await fetch(`${BACKEND_URL}/test/agora/token?channel=${channelName}`)
+                          .then(res => res.json())
+                          .then(json => json.data);
+      
+      console.log(`토큰: ${token}`);
+      console.log(`UID: ${uid}`);
+
+      const generatedUid = await client.join(APP_ID, channelName, token, uid);
       setUid(generatedUid);
       setIsJoined(true);
       console.log('채널 참여 성공:', generatedUid);
@@ -299,11 +304,11 @@ const AgoraMultiMedia = () => {
       
       const result = await AgoraRTC.createScreenVideoTrack({
         encoderConfig: {
-          width: { ideal: 1920, max: 1920 },
-          height: { ideal: 1080, max: 1080 },
-          frameRate: 15,
-          bitrateMin: 1000,
-          bitrateMax: 3000
+          width: { ideal: 1920, max: 3840 },
+          height: { ideal: 1080, max: 2160 },
+          frameRate: 30,
+          bitrateMin: 3000,
+          bitrateMax: 5000
         },
         optimizationMode: "detail"
       }, "auto");
@@ -686,7 +691,6 @@ const AgoraMultiMedia = () => {
           <div>화면 공유: {isSharing ? '✅ 진행중' : '❌ 중지됨'}</div>
           <div>마이크: {isAudioEnabled ? (localAudioTrack?.enabled ? '🎤 활성' : '🔇 음소거') : '❌ 비활성'}</div>
           {/* <div>카메라: {isCameraEnabled ? '📹 활성' : '❌ 비활성'}</div> */}
-          <div>원격 사용자: {remoteUsers.length}명</div>
           {localScreenTrack && (
             <div>화면공유 트랙: {localScreenTrack.isPlaying ? '▶️ 재생중' : '⏸️ 정지'}</div>
           )}

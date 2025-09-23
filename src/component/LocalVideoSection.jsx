@@ -11,7 +11,7 @@ export default function LocalVideoSection({ localVideoRef, isSharing }) {
                 style={{ 
                     width: '1280px',
                     height: '720px',
-                    backgroundColor: '#000', 
+                    backgroundColor: '#000',
                     borderRadius: '8px',
                     position: 'relative',
                     display: 'flex',
