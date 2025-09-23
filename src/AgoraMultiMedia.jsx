@@ -9,11 +9,10 @@ import LocalVideoSection from './component/LocalVideoSection';
 // Agora 설정
 const APP_ID = process.env.REACT_APP_AGORA_APP_ID;
 const TOKEN = process.env.REACT_APP_AGORA_APP_TEMP_TOKEN;
+// 백엔드 서버 URL
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
 const AgoraMultiMedia = () => {
-
-  // 백엔드 서버 URL
-  const BACKEND_URL = process.env.BACKEND_URL;
 
   // URL 파라미터에서 사용자 이름 가져오기
   const { username } = useParams();
@@ -170,7 +169,10 @@ const AgoraMultiMedia = () => {
 
       // 채널 참여
       const { uid, token } = await fetch(`${BACKEND_URL}/test/agora/token?channel=${channelName}`)
-                          .then(res => res.json())
+                          .then(res => {
+                            console.log(res);
+                            return res.json()
+                          })
                           .then(json => json.data);
       
       console.log(`토큰: ${token}`);
