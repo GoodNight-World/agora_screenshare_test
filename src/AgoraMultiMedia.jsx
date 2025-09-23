@@ -13,7 +13,7 @@ const TOKEN = process.env.REACT_APP_AGORA_APP_TEMP_TOKEN;
 const AgoraMultiMedia = () => {
 
   // 백엔드 서버 URL
-  const BACKEND_URL = process.env.BACKEND_URL || 'http://172.30.1.16:3000';
+  const BACKEND_URL = process.env.BACKEND_URL;
 
   // URL 파라미터에서 사용자 이름 가져오기
   const { username } = useParams();

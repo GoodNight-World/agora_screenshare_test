@@ -1,5 +1,6 @@
 # .env 환경변수
 REACT_APP_AGORA_APP_ID=[아고라 앱 아이디]
+
 REACT_APP_AGORA_APP_TEMP_TOKEN=[아고라 테스트용 임시 토큰]
 
 BACKEND_URL=[백엔드 서버 주소]
