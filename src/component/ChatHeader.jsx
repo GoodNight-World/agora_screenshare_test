@@ -7,15 +7,21 @@ export default function ChatHeader({ roomId, userCount, isChatLocked, onLockTogg
 
   // 바깥 클릭 & ESC 닫기
   useEffect(() => {
+    // 열려 있을 때만 리스너 부착
+    if (!open) return;
+
     function onDown(e) {
-      if (!open) return;
       const targets = [menuRef.current, btnRef.current];
       const clickedInside = targets.some(el => el && el.contains(e.target));
       if (!clickedInside) setOpen(false);
     }
+
     function onKey(e) { if (e.key === "Escape") setOpen(false); }
+
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
+
+    // 다음 useEffect가 실행 될 때 이전 이벤트 정리
     return () => {
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);

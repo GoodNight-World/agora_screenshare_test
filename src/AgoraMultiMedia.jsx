@@ -5,6 +5,7 @@ import { useParams } from 'react-router-dom';
 import ChatHeader from './component/ChatHeader';
 import UserGuide from './component/UserGuide';
 import LocalVideoSection from './component/LocalVideoSection';
+import UserControlPanel from './component/UserControlPanel';
 
 // Agora 설정
 const APP_ID = process.env.REACT_APP_AGORA_APP_ID;
@@ -35,10 +36,13 @@ const AgoraMultiMedia = () => {
   const [channelName, setChannelName] = useState('classroom');
   const [uid, setUid] = useState(null);
 
-  const localVideoRef = useRef(null);
-  const localCameraRef = useRef(null);
-  const remoteVideoRefs = useRef({});
+  const [isUserPanelOpen, setIsUserPanelOpen] = useState(false); // 인원 관리창 상태
+
+  const localVideoRef = useRef(null); // 로컬 비디오 창 Ref
+  const localCameraRef = useRef(null); // 로컬 카메라 창 Ref
+  const remoteVideoRefs = useRef({}); // 원격 비디오 창 Ref
   const remoteAudioRefs = useRef({});
+  const userControlBtnRef = useRef(null); // 인원 관리 버튼 Ref
 
   // 소켓 및 채팅 관련 상태
   const [socket, setSocket] = useState(null);
@@ -46,6 +50,7 @@ const AgoraMultiMedia = () => {
   const [roomId, setRoomId] = useState('classroom');
   const [userCount, setUserCount] = useState(null);
   const [isChatLocked, setIsChatLocked] = useState(false);
+  const [users, setUsers] = useState([]);
 
 
   function upsertRemote(uid, patch) {
@@ -169,10 +174,7 @@ const AgoraMultiMedia = () => {
 
       // 채널 참여
       const { uid, token } = await fetch(`${BACKEND_URL}/test/agora/token?channel=${channelName}`)
-                          .then(res => {
-                            console.log(res);
-                            return res.json()
-                          })
+                          .then(res => res.json())
                           .then(json => json.data);
       
       console.log(`토큰: ${token}`);
@@ -194,7 +196,7 @@ const AgoraMultiMedia = () => {
       // 연결 성공 시
       newSocket.on('connect', () => {
         console.log('채팅 서버에 연결됨:', newSocket.id);
-        newSocket.emit('joinClassroom', { roomId: "classroom", nickname: `${username}`, accountType: "PROFESSOR" });
+        newSocket.emit('joinClassroom', { roomId: `${roomId}`, email: "professor@test.com", nickname: `${username}`, accountType: "PROFESSOR" });
       });
 
       // 연결 후 룸 정보 수신
@@ -235,6 +237,18 @@ const AgoraMultiMedia = () => {
         console.log('채팅 잠금 상태 변경: ', payload.locked);
       });
 
+      // 같은 소켓 방에 있는 유저 정보 목록 받아오기
+      newSocket.on('userList', (payload) => {
+        setUsers(payload.users);
+        console.log('유저 목록 불러옴: ', payload.users);
+      });
+
+      // 강퇴당하였을 경우
+      newSocket.on('kicked', () => {
+        alert('호스트에 의해 퇴장되었습니다.');
+        leaveChannel();
+      });
+
       // 연결 해제 시
       newSocket.on('disconnect', () => {
         console.log('채팅 서버와 연결 해제됨');
@@ -243,7 +257,7 @@ const AgoraMultiMedia = () => {
 
     } catch (error) {
       console.error('채널 참여 실패:', error);
-      alert('채널 참여에 실패했습니다.');                        
+      alert('채널 참여에 실패했습니다.');                     
     }
   };
 
@@ -260,7 +274,7 @@ const AgoraMultiMedia = () => {
   // 채팅 삭제 함수 추가
   const deleteMessage = (messageId) => {
     if (socket && socket.connected) {
-      socket.emit('deleteClassChatMessage', { id: messageId });
+      socket.emit('deleteClassChatMessage', messageId);
     } else {
       setMessages(prev => prev.filter(msg => msg.id !== messageId));
     }
@@ -282,6 +296,7 @@ const AgoraMultiMedia = () => {
       setUid(null);
       setMessages([]); // 채팅 초기화
       setRemoteUsers([]);
+      setIsUserPanelOpen(false);
       console.log('채널을 떠났습니다.');
 
       // 소켓 연결 해제
@@ -563,6 +578,24 @@ const AgoraMultiMedia = () => {
     }
   }
 
+  // 인원 관리창 이벤트 핸들러
+  const toggleUserControlPanel = async () => {
+
+    // 인원 관리창이 닫혀있는 경우
+    if(!isUserPanelOpen){
+      // 인원 관리창 열기 전 미리 유저 목록 받아서 상태 업데이트
+      socket.emit('userList', roomId);
+    }
+
+    setIsUserPanelOpen(prev => !prev);
+  }
+
+  // 인원 강퇴 이벤트 핸들러
+  const onKickUser = async (socketId) => {
+      socket.emit('kickUser', socketId);
+      setUsers(prev => prev.filter((user) => user.id !== socketId)); // 인자로 들어온 소켓 아이디와 유저 객체의 소켓 아이디가 다른 것들만 필터링해서 재랜더링
+  }
+
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
       <h1>VEATRA 강의실 멀티미디어 통합관리</h1>
@@ -605,7 +638,7 @@ const AgoraMultiMedia = () => {
             채널 참여
           </button>
         ) : (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ position: "relative", display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
             <button 
               onClick={leaveChannel}
               style={{ 
@@ -619,6 +652,27 @@ const AgoraMultiMedia = () => {
             >
               채널 떠나기
             </button>
+            
+            {/* 인원 관리 버튼 */}
+            <button
+              ref={userControlBtnRef}
+              onClick= {toggleUserControlPanel}
+              style={{
+                padding: '10px 20px',
+                backgroundColor: '#285be6ff',
+                color: 'white',
+                border: 'none',
+                borderRadius: '5px',
+                cursor: 'pointer'
+              }}
+            >
+              인원 관리
+            </button>
+            
+            {
+              // 인원 관리창
+              isUserPanelOpen && <UserControlPanel open = {isUserPanelOpen} users = {users} onKickUser={onKickUser} />
+            }
             
             {/* 화면 공유 버튼 */}
             <button 
