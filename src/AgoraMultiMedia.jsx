@@ -6,6 +6,7 @@ import ChatHeader from './component/ChatHeader';
 import UserGuide from './component/UserGuide';
 import LocalVideoSection from './component/LocalVideoSection';
 import UserControlPanel from './component/UserControlPanel';
+import { createChatSocket } from './services/socket';
 
 // Agora 설정
 const APP_ID = process.env.REACT_APP_AGORA_APP_ID;
@@ -52,7 +53,7 @@ const AgoraMultiMedia = () => {
   const [isChatLocked, setIsChatLocked] = useState(false);
   const [users, setUsers] = useState([]);
 
-
+  // 원격 사용자 목록 업데이트 함수
   function upsertRemote(uid, patch) {
     setRemoteUsers(prev => {
       const i = prev.findIndex(u => u.uid === uid);
@@ -185,11 +186,8 @@ const AgoraMultiMedia = () => {
       setIsJoined(true);
       console.log('채널 참여 성공:', generatedUid);
 
-      // 채팅용 백엔드 소켓 연결
-      const newSocket = io(`${BACKEND_URL}`, {
-        transports: ['websocket'],
-        secure: false
-      });
+      // 채팅 소켓 연결
+      const newSocket = createChatSocket(BACKEND_URL);
       setSocket(newSocket);
 
       // 소켓 이벤트 리스너 설정
@@ -277,6 +275,14 @@ const AgoraMultiMedia = () => {
       socket.emit('deleteClassChatMessage', messageId);
     } else {
       setMessages(prev => prev.filter(msg => msg.id !== messageId));
+    }
+  }
+
+  // 채팅 잠금 이벤트 핸들러
+  const chatLockToggle = (value) => {
+    if (socket && socket.connected) {
+      socket.emit('toggleChatLock', { roomId, locked: value });
+      console.log(`채팅 잠금 상태: ${value}`);
     }
   }
 
@@ -567,14 +573,6 @@ const AgoraMultiMedia = () => {
   const onHandleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
       sendMessage();
-    }
-  }
-
-  // 채팅 잠금 이벤트 핸들러
-  const chatLockToggle = (value) => {
-    if (socket && socket.connected) {
-      socket.emit('toggleChatLock', { roomId, locked: value });
-      console.log(`채팅 잠금 상태: ${value}`);
     }
   }
 
