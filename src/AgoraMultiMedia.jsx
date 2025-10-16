@@ -858,6 +858,7 @@ const AgoraMultiMedia = () => {
                   );
                 })}
               </div>
+              {/* 채팅 입력창 */}
               <input 
                 id="message" 
                 type='text' 
@@ -884,3 +885,5 @@ const AgoraMultiMedia = () => {
 };
 
 export default AgoraMultiMedia;
+
+
