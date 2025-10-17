@@ -1,12 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import AgoraRTC from 'agora-rtc-sdk-ng';
-import { io } from 'socket.io-client';
 import { useParams } from 'react-router-dom';
-import ChatHeader from './component/ChatHeader';
 import UserGuide from './component/UserGuide';
 import LocalVideoSection from './component/LocalVideoSection';
 import UserControlPanel from './component/UserControlPanel';
-import { createChatSocket } from './services/socket';
+import ChatPanel from './component/ChatPanel';
+import useChat from './hooks/useChat.js';
+import StatusInfo from './component/StatusInfo.jsx';
+import SettingSection from './component/SettingSection.jsx';
+import RemoteUserSection from './component/RemoteUserSection.jsx';
 
 // Agora 설정
 const APP_ID = process.env.REACT_APP_AGORA_APP_ID;
@@ -45,13 +47,13 @@ const AgoraMultiMedia = () => {
   const remoteAudioRefs = useRef({});
   const userControlBtnRef = useRef(null); // 인원 관리 버튼 Ref
 
-  // 소켓 및 채팅 관련 상태
-  const [socket, setSocket] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [roomId, setRoomId] = useState('classroom');
-  const [userCount, setUserCount] = useState(null);
-  const [isChatLocked, setIsChatLocked] = useState(false);
-  const [users, setUsers] = useState([]);
+  const chat = useChat({
+    BACKEND_URL: process.env.REACT_APP_BACKEND_URL,
+    initRoomId: 'classroom',
+    username,
+    email: 'test@test.com',
+    accountType: 'PROFESSOR'
+  });
 
   // 원격 사용자 목록 업데이트 함수
   function upsertRemote(uid, patch) {
@@ -162,6 +164,10 @@ const AgoraMultiMedia = () => {
     };
   }, [localScreenTrack, isSharing]);
 
+  // 소켓 연결이 끊겼을 경우(강퇴 당했을 때 발생) 채널 떠나기
+  useEffect(() => {
+    if(!chat.isConnected) leaveChannel();
+  }, [chat.isConnected]);
 
   // 채널 참여
   const joinChannel = async () => {
@@ -186,105 +192,14 @@ const AgoraMultiMedia = () => {
       setIsJoined(true);
       console.log('채널 참여 성공:', generatedUid);
 
-      // 채팅 소켓 연결
-      const newSocket = createChatSocket(BACKEND_URL);
-      setSocket(newSocket);
-
-      // 소켓 이벤트 리스너 설정
-      // 연결 성공 시
-      newSocket.on('connect', () => {
-        console.log('채팅 서버에 연결됨:', newSocket.id);
-        newSocket.emit('joinClassroom', { roomId: `${roomId}`, email: "professor@test.com", nickname: `${username}`, accountType: "PROFESSOR" });
-      });
-
-      // 연결 후 룸 정보 수신
-      newSocket.on('roomInfo', (payload) => {
-        setRoomId(payload.roomId);
-        setUserCount(payload.count);
-        if(payload.locked) setIsChatLocked(payload.locked);
-        console.log('룸 정보: ', payload);
-      });
-
-      // 새로운 채팅 메세지 수신
-      newSocket.on('classChatMessage', (payload) => {
-        
-        // 메시지 객체 생성
-        let newMessage = {
-          id: payload.id,
-          email: payload.email,
-          username: payload.username,
-          nickname: payload.nickname,
-          message: payload.message,
-          accountType: payload.accountType,
-          timestamp: payload.timestamp
-        };
-
-        setMessages(prev => [...prev, newMessage]);
-        console.log('새 채팅 메시지: ', newMessage);
-      });
-
-      // 채팅 삭제 이벤트 리스너
-      newSocket.on('chatMessageDeleted', (payload) => {
-        setMessages(prev => prev.filter(msg => msg.id !== payload.id));
-        console.log('채팅 메시지 삭제됨: ', payload.id);
-      });
-
-      // 채팅 잠금 상태
-      newSocket.on('chat:lockState', (payload) => {
-        setIsChatLocked(payload.locked);
-        console.log('채팅 잠금 상태 변경: ', payload.locked);
-      });
-
-      // 같은 소켓 방에 있는 유저 정보 목록 받아오기
-      newSocket.on('userList', (payload) => {
-        setUsers(payload.users);
-        console.log('유저 목록 불러옴: ', payload.users);
-      });
-
-      // 강퇴당하였을 경우
-      newSocket.on('kicked', () => {
-        alert('호스트에 의해 퇴장되었습니다.');
-        leaveChannel();
-      });
-
-      // 연결 해제 시
-      newSocket.on('disconnect', () => {
-        console.log('채팅 서버와 연결 해제됨');
-        setSocket(null);
-      });
+      // 소켓 연결
+      chat.connect();
 
     } catch (error) {
       console.error('채널 참여 실패:', error);
       alert('채널 참여에 실패했습니다.');                     
     }
   };
-
-  // 채팅 보내기
-  const sendMessage = () => {
-    const messageInput = document.getElementById('message');
-    const message = messageInput.value.trim();
-    if (message && socket && socket.connected) {
-      socket.emit('classChatMessage', message);
-      messageInput.value = '';
-    }
-  }
-
-  // 채팅 삭제 함수 추가
-  const deleteMessage = (messageId) => {
-    if (socket && socket.connected) {
-      socket.emit('deleteClassChatMessage', messageId);
-    } else {
-      setMessages(prev => prev.filter(msg => msg.id !== messageId));
-    }
-  }
-
-  // 채팅 잠금 이벤트 핸들러
-  const chatLockToggle = (value) => {
-    if (socket && socket.connected) {
-      socket.emit('toggleChatLock', { roomId, locked: value });
-      console.log(`채팅 잠금 상태: ${value}`);
-    }
-  }
 
   // 채널 떠나기
   const leaveChannel = async () => {
@@ -300,16 +215,11 @@ const AgoraMultiMedia = () => {
       await client.leave();
       setIsJoined(false);
       setUid(null);
-      setMessages([]); // 채팅 초기화
-      setRemoteUsers([]);
       setIsUserPanelOpen(false);
       console.log('채널을 떠났습니다.');
 
-      // 소켓 연결 해제
-      if (socket && socket.connected) {
-        socket.disconnect();
-        console.log("채팅 서버 연결 해제됨");
-      }
+      // 소켓 해제
+      chat.disconnect();
     } catch (error) {
       console.error('채널 떠나기 실패:', error);
     }
@@ -572,7 +482,7 @@ const AgoraMultiMedia = () => {
   // 키보드 이벤트 핸들러
   const onHandleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
-      sendMessage();
+      chat.sendMessage(e.value);
     }
   }
 
@@ -582,7 +492,7 @@ const AgoraMultiMedia = () => {
     // 인원 관리창이 닫혀있는 경우
     if(!isUserPanelOpen){
       // 인원 관리창 열기 전 미리 유저 목록 받아서 상태 업데이트
-      socket.emit('userList', roomId);
+      chat.requestUserList();
     }
 
     setIsUserPanelOpen(prev => !prev);
@@ -590,8 +500,7 @@ const AgoraMultiMedia = () => {
 
   // 인원 강퇴 이벤트 핸들러
   const onKickUser = async (socketId) => {
-      socket.emit('kickUser', socketId);
-      setUsers(prev => prev.filter((user) => user.id !== socketId)); // 인자로 들어온 소켓 아이디와 유저 객체의 소켓 아이디가 다른 것들만 필터링해서 재랜더링
+      chat.kickUser(socketId);
   }
 
   return (
@@ -599,29 +508,16 @@ const AgoraMultiMedia = () => {
       <h1>VEATRA 강의실 멀티미디어 통합관리</h1>
       
       {/* 설정 섹션 */}
-      <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
-        <h3>설정</h3>
-        <div style={{ marginBottom: '10px' }}>
-          <label>
-            채널명: 
-            <input 
-              type="text" 
-              value={channelName}
-              onChange={(e) => setChannelName(e.target.value)}
-              disabled={isJoined}
-              style={{ marginLeft: '10px', padding: '5px' }}
-            />
-          </label>
-        </div>
-        <div style={{ color: '#666', fontSize: '12px' }}>
-          App ID: {APP_ID || '설정되지 않음'}
-        </div>
-      </div>
+      <SettingSection
+        channelName={channelName}
+        setChannelName={setChannelName}
+        isJoined={isJoined}
+      />
 
       {/* 컨트롤 버튼 */}
       <div style={{ marginBottom: '20px' }}>
         {!isJoined ? (
-          <button 
+          <button
             onClick={joinChannel}
             style={{ 
               padding: '10px 20px', 
@@ -666,11 +562,9 @@ const AgoraMultiMedia = () => {
             >
               인원 관리
             </button>
-            
-            {
-              // 인원 관리창
-              isUserPanelOpen && <UserControlPanel open = {isUserPanelOpen} users = {users} onKickUser={onKickUser} />
-            }
+
+            {/* 인원 관리창 */}
+            { isUserPanelOpen && <UserControlPanel open = {isUserPanelOpen} users = {chat.users} onKickUser={onKickUser} />}
             
             {/* 화면 공유 버튼 */}
             <button 
@@ -738,134 +632,39 @@ const AgoraMultiMedia = () => {
       </div>
 
       {/* 상태 정보 */}
-      <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#e9ecef', borderRadius: '5px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
-          <div>상태: {isJoined ? `채널 "${channelName}"에 참여중` : '채널에 참여하지 않음'}</div>
-          <div>UID: {uid || 'N/A'}</div>
-          <div>화면 공유: {isSharing ? '✅ 진행중' : '❌ 중지됨'}</div>
-          <div>마이크: {isAudioEnabled ? (localAudioTrack?.enabled ? '🎤 활성' : '🔇 음소거') : '❌ 비활성'}</div>
-          {/* <div>카메라: {isCameraEnabled ? '📹 활성' : '❌ 비활성'}</div> */}
-          {localScreenTrack && (
-            <div>화면공유 트랙: {localScreenTrack.isPlaying ? '▶️ 재생중' : '⏸️ 정지'}</div>
-          )}
-          {localScreenTrack && (
-            <div>트랙 상태: {localScreenTrack.enabled ? '활성화' : '비활성화'}</div>
-          )}
-        </div>
-      </div>
+      <StatusInfo
+        isJoined={isJoined}
+        channelName={channelName}
+        uid={uid}
+        isSharing={isSharing}
+        isAudioEnabled={isAudioEnabled}
+        localAudioTrack={localAudioTrack}
+        localScreenTrack={localScreenTrack}
+      />
       
       {/* 원격 사용자 및 채팅 섹션 */}
       <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start'}}>
 
         {/* 원격 사용자 섹션 */}
         {remoteUsers.length > 0 && (
-          <div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
-              {remoteUsers.map(user => (
-                <div key={user.uid} style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '15px' }}>
-                  <h3>사용자 {user.uid}</h3>
-                  <div style={{ marginBottom: '10px' }}>
-                    <span style={{ marginRight: '15px' }}>
-                      📹 비디오: {user.videoTrack ? '✅' : '❌'}
-                    </span>
-                    <span>
-                      🎤 오디오: {user.audioTrack ? '✅' : '❌'}
-                    </span>
-                  </div>
-                  <div 
-                    ref={el => remoteVideoRefs.current[user.uid] = el}
-                    style={{ 
-                      width: '1260px', 
-                      height: '680px',
-                      backgroundColor: '#000', 
-                      borderRadius: '8px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'white'
-                    }}
-                  >
-                    {!user.videoTrack && '비디오 없음'}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <RemoteUserSection
+            remoteUsers={remoteUsers}
+            remoteVideoRefs={remoteVideoRefs}
+          />
         )}
         
         {/* 채팅 컨테이너 */}
         <div style={{ flex: '1', minWidth: '300px' }}>
           {isJoined && (
-            <div style={{ padding: '0 10px 10px 10px', display: 'flex', flexDirection: 'column', border: '1px solid #000000ff', borderRadius: '8px' }}>
-
-              {/* 채팅창 헤더 */}
-              <ChatHeader
-                roomId={roomId}
-                userCount={userCount}
-                isChatLocked={isChatLocked}
-                onLockToggle={chatLockToggle}
-              />
-
-              {/* 채팅창 */}
-              <div id="chat">
-                {messages.map((msg) => {
-                  // Ensure the map returns JSX so messages render
-                  console.log('Rendering message:', msg);
-                  return (
-                    <div
-                      key={msg.id}
-                      style={{
-                        marginBottom: '8px',
-                        padding: '8px',
-                        backgroundColor: 'white',
-                        borderRadius: '4px',
-                        border: '1px solid #000000ff',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'flex-start'
-                      }}
-                    >
-                      {/* 채팅 메세지 */}
-                      <div style={{ flex: '1' }}>
-                        <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '2px' }}>
-                          {msg.nickname}
-                          <span style={{ fontSize: '12px', color: '#999', marginLeft: '8px' }}>
-                            {msg.timestamp}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: '14px' }}>{msg.message}</div>
-                      </div>
-
-                      {/* 채팅 메세지 삭제 버튼 */}
-                      <button
-                        onClick={() => deleteMessage(msg.id)}
-                        style={{
-                          marginLeft: '8px',
-                          padding: '4px 8px',
-                          fontSize: '12px',
-                          backgroundColor: '#dc3545',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '3px',
-                          cursor: 'pointer'
-                        }}
-                        title="메세지 삭제"
-                      >
-                        삭제
-                      </button>
-
-                    </div>
-                  );
-                })}
-              </div>
-              {/* 채팅 입력창 */}
-              <input 
-                id="message" 
-                type='text' 
-                placeholder='채팅 입력 후 Enter'
-                onKeyUp={onHandleKeyPress} 
-                style={{ width: '100%', padding: '8px', boxSizing: 'border-box', border: '1px solid' }}/>
-            </div>
+            <ChatPanel
+              roomId={chat.roomId}
+              userCount={chat.userCount}
+              isChatLocked={chat.isChatLocked}
+              messages={chat.messages}
+              onSend={chat.sendMessage}
+              onDelete={chat.deleteMessage}
+              onLockToggle={chat.toggleChatLock}
+            />
           )}
         </div>
 

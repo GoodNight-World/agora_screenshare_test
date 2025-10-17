@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
 
-export default function ChatHeader({ roomId, userCount, isChatLocked, onLockToggle }) {
+export default function ChatHeader({ roomId, userCount, onLockToggle }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
   const btnRef = useRef(null);
+  const [isChatLocked, setIsChatLocked] = useState(false);
 
   // 바깥 클릭 & ESC 닫기
   useEffect(() => {
@@ -31,8 +32,10 @@ export default function ChatHeader({ roomId, userCount, isChatLocked, onLockTogg
   const handleSelect = (action) => {
     // 여기에 실제 동작을 연결하세요
     if (action === "host-only-lock") {
+      setIsChatLocked(true);
       onLockToggle?.(true); // 예: 호스트 외 채팅 잠금
     } else if (action === "all-chat") {
+      setIsChatLocked(false);
       onLockToggle?.(false); // 예: 전체 채팅 허용
     }
     setOpen(false);

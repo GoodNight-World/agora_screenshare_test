@@ -3,15 +3,14 @@ import { createChatSocket } from "../services/socket";
 
 export default function useChat({
     BACKEND_URL,
-    roomId,
+    initRoomId,
     username,
     email,
-    accountType,
-    leaveChannel
+    accountType
 }) {
     // 소켓 및 채팅 관련 상태
     const socketRef = useRef(null);
-    const [roomId, setRoomId] = useState('classroom');
+    const [roomId, setRoomId] = useState(initRoomId);
     const [messages, setMessages] = useState([]);
     const [users, setUsers] = useState([]);
     const [userCount, setUserCount] = useState(null);
@@ -27,12 +26,14 @@ export default function useChat({
         return socketRef.current;
     }, [BACKEND_URL]);
     
+    // 소켓 연결 및 리스너 선언
     const connect = useCallback(() => {
         const socket = getSocket();
         if(socket.connected) return;
 
         socket.connect();
 
+        // ------ 리스너들 ------
         socket.on('connect', () => {
             setIsConnected(true);
             console.log("채팅 서버에 연결됨: ", socket.id);
@@ -55,13 +56,13 @@ export default function useChat({
 
             // 메시지 객체 생성
             let newMessage = {
-            id: payload.id,
-            email: payload.email,
-            username: payload.username,
-            nickname: payload.nickname,
-            message: payload.message,
-            accountType: payload.accountType,
-            timestamp: payload.timestamp
+                id: payload.id,
+                email: payload.email,
+                username: payload.username,
+                nickname: payload.nickname,
+                message: payload.message,
+                accountType: payload.accountType,
+                timestamp: payload.timestamp
             };
 
             setMessages((prev) => [...prev, newMessage]);
@@ -86,7 +87,6 @@ export default function useChat({
         socket.on('kicked', () => {
             alert('호스트에 의해 퇴장되었습니다.');
             setIsConnected(false);
-            leaveChannel();
             socket.disconnect();
         });
 
@@ -96,6 +96,7 @@ export default function useChat({
         });
     }, [getSocket, roomId, email, username, accountType]);
 
+    // 소켓 연결 해제 함수
     const disconnect = useCallback(() => {
         const socket = getSocket();
         if (!socket.connected) return;
@@ -108,12 +109,15 @@ export default function useChat({
     }, [getSocket]);
 
     // ------ 핸들러들 ------
+
+    // 채팅 보내기 이벤트
     const sendMessage = useCallback((text) => {
         const socket = getSocket();
         if (!text?.trim() || !socket.connected) return;
         socket.emit('classChatMessage', text.trim());
     }, [getSocket]);
 
+    // 채팅 삭제 이벤트
     const deleteMessage = useCallback((id) => {
         const socket = getSocket();
         if(!socket.connected) {
@@ -123,16 +127,19 @@ export default function useChat({
         socket.emit('deleteClassChatMessage', id);
     }, [getSocket]);
 
+    // 유저 리스트 요청 이벤트
     const requestUserList = useCallback(() => {
         const socket = getSocket();
         if(socket.connected) socket.emit('userList', roomId);
     }, [getSocket, roomId]);
 
+    // 채팅 잠금 토글 이벤트
     const toggleChatLock = useCallback((locked) => {
         const socket = getSocket();
         if (socket.connected) socket.emit('toggleChatLock', { roomId, locked });
     }, [getSocket, roomId]);
 
+    // 유저 강퇴 이벤트
     const kickUser = useCallback((socketId) => {
         const socket = getSocket();
         if (socket.connected) {
@@ -141,6 +148,7 @@ export default function useChat({
         }
     }, [getSocket]);
 
+    // 컴포넌트 언마운트 시 정리
     useEffect(() => () => disconnect(), [disconnect]);
 
     return {
@@ -150,5 +158,4 @@ export default function useChat({
         // 제어
         connect, disconnect, sendMessage, deleteMessage, toggleChatLock, requestUserList, kickUser, setRoomId
     }
-
 }

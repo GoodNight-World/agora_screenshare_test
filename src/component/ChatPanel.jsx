@@ -1,3 +1,5 @@
+import ChatHeader from "./ChatHeader";
+
 export default function ChatPanel({
   roomId, userCount, isChatLocked,
   messages, onSend, onDelete, onLockToggle,
@@ -6,7 +8,7 @@ export default function ChatPanel({
   return (
     <div style={{ padding: 10, border: '1px solid #000', borderRadius: 8 }}>
       {/* 헤더 */}
-      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8 }}>
+      {/* <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8 }}>
         <div>방: {roomId} / 인원: {userCount ?? '-'}</div>
         <label>
           <input
@@ -15,7 +17,13 @@ export default function ChatPanel({
             onChange={(e) => onLockToggle(e.target.checked)}
           /> 잠금
         </label>
-      </div>
+      </div> */}
+      <ChatHeader
+        roomId={roomId}
+        userCount={userCount}
+        isChatLocked={isChatLocked}
+        onLockToggle={onLockToggle}
+      />
 
       {/* 메시지 */}
       <div id="chat">
