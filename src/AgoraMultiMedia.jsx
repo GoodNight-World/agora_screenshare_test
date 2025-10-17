@@ -538,8 +538,8 @@ const AgoraMultiMedia = () => {
               style={{ 
                 padding: '10px 20px', 
                 backgroundColor: '#dc3545', 
-                color: 'white', 
-                border: 'none', 
+                color: 'white',
+                border: 'none',
                 borderRadius: '5px',
                 cursor: 'pointer'
               }}
