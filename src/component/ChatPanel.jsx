@@ -21,7 +21,7 @@ export default function ChatPanel({
       <ChatHeader
         roomId={roomId}
         userCount={userCount}
-        isChatLocked={isChatLocked}
+        ChatLocked={isChatLocked}
         onLockToggle={onLockToggle}
       />
 

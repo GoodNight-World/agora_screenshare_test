@@ -671,7 +671,7 @@ const AgoraMultiMedia = () => {
       </div>
 
       {/* 로컬 비디오 섹션 */}
-      <LocalVideoSection 
+      <LocalVideoSection
         localVideoRef={localVideoRef}
         isSharing={isSharing}
       />
