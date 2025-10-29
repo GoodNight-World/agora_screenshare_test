@@ -37,7 +37,8 @@ const AgoraMultiMedia = () => {
   const [isCameraEnabled, setIsCameraEnabled] = useState(false);
   const [isJoined, setIsJoined] = useState(false);
   const [channelName, setChannelName] = useState('classroom');
-  const [uid, setUid] = useState(null);
+  const [agoraUid, setAgoraUid] = useState(null);
+
 
   const [isUserPanelOpen, setIsUserPanelOpen] = useState(false); // 인원 관리창 상태
 
@@ -74,6 +75,10 @@ const AgoraMultiMedia = () => {
       codec: 'vp8',
       role: 'host'
     });
+
+    // Uid 생성
+    const agoraUid = Math.floor(100000 + Math.random() * 900000);
+    setAgoraUid(agoraUid);
 
     // 원격 사용자 이벤트 리스너
     agoraClient.on('user-published', async (user, mediaType) => {
@@ -116,10 +121,12 @@ const AgoraMultiMedia = () => {
 
     // 토큰 만료전 재발급 이벤트
     agoraClient.on('token-privilege-will-expire', async () => {
-      const newToken = await fetch(`${BACKEND_URL}/test/agora/test?channel=${channelName}`)
-                            .then(res => res.json())
-                            .then(json => json.data.token);
-      await agoraClient.renewToken(newToken);
+      console.log("아고라 Uid: " + agoraUid);
+      const { token } = await fetch(`${BACKEND_URL}/test/agora/token?channel=${channelName}&uid=${agoraUid}`)
+                          .then(res => res.json())
+                          .then(json => json.data);
+      await agoraClient.renewToken(token);
+      console.log("토큰이 재발급 되었습니다.");
     });
 
     // 사용자 채널 퇴장시 처리
@@ -136,6 +143,13 @@ const AgoraMultiMedia = () => {
       }
     };
   }, []);
+
+  // 아고라 Uid 상태 업데이트
+  useEffect(() => {
+    if (agoraUid) {
+      console.log("agoraUid가 업데이트됨:", agoraUid);
+    }
+  }, [agoraUid]);
 
   // 원격 비디오 재생
   useEffect(() => {
@@ -180,15 +194,14 @@ const AgoraMultiMedia = () => {
       console.log(`채널 참여전`)
 
       // 채널 참여
-      const { uid, token } = await fetch(`${BACKEND_URL}/test/agora/token?channel=${channelName}`)
+      const { uid, token } = await fetch(`${BACKEND_URL}/test/agora/token?channel=${channelName}&uid=${agoraUid}`)
                           .then(res => res.json())
                           .then(json => json.data);
       
       console.log(`토큰: ${token}`);
       console.log(`UID: ${uid}`);
 
-      const generatedUid = await client.join(APP_ID, channelName, token, uid);
-      setUid(generatedUid);
+      const generatedUid = await client.join(APP_ID, channelName, token, agoraUid);
       setIsJoined(true);
       console.log('채널 참여 성공:', generatedUid);
 
@@ -214,7 +227,6 @@ const AgoraMultiMedia = () => {
       // 채널 떠나기
       await client.leave();
       setIsJoined(false);
-      setUid(null);
       setIsUserPanelOpen(false);
       console.log('채널을 떠났습니다.');
 
@@ -520,7 +532,7 @@ const AgoraMultiMedia = () => {
           <button
             onClick={joinChannel}
             style={{ 
-              padding: '10px 20px', 
+              padding: '10px 20px',
               backgroundColor: '#007bff', 
               color: 'white', 
               border: 'none', 
@@ -635,7 +647,7 @@ const AgoraMultiMedia = () => {
       <StatusInfo
         isJoined={isJoined}
         channelName={channelName}
-        uid={uid}
+        uid={agoraUid}
         isSharing={isSharing}
         isAudioEnabled={isAudioEnabled}
         localAudioTrack={localAudioTrack}
