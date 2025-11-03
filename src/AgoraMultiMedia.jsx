@@ -45,14 +45,14 @@ const AgoraMultiMedia = () => {
   const localVideoRef = useRef(null); // 로컬 비디오 창 Ref
   const localCameraRef = useRef(null); // 로컬 카메라 창 Ref
   const remoteVideoRefs = useRef({}); // 원격 비디오 창 Ref
-  const remoteAudioRefs = useRef({});
+  // const remoteAudioRefs = useRef({});
   const userControlBtnRef = useRef(null); // 인원 관리 버튼 Ref
 
   const chat = useChat({
     BACKEND_URL: process.env.REACT_APP_BACKEND_URL,
     initRoomId: 'classroom',
     username,
-    email: 'test@test.com',
+    email: ['test@test.com', 'test2@test.com'][Math.floor(Math.random()*2)],
     accountType: 'PROFESSOR'
   });
 

@@ -91,8 +91,8 @@ export default function useChat({
             console.log('유저 목록 불러옴: ', payload.users);
         });
 
-        socket.on('kicked', () => {
-            alert('호스트에 의해 퇴장되었습니다.');
+        socket.on('kicked', (payload) => {
+            alert(payload.reason);
             setIsConnected(false);
             socket.disconnect();
         });
