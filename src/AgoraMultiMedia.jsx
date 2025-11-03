@@ -144,12 +144,9 @@ const AgoraMultiMedia = () => {
     };
   }, []);
 
-  // 아고라 Uid 상태 업데이트
+  // 아고라 Uid, 채널명 상태 업데이트
   useEffect(() => {
-    if (agoraUid) {
-      console.log("agoraUid가 업데이트됨:", agoraUid);
-    }
-  }, [agoraUid]);
+  }, [agoraUid, channelName]);
 
   // 원격 비디오 재생
   useEffect(() => {
@@ -192,6 +189,10 @@ const AgoraMultiMedia = () => {
 
     try {
       console.log(`채널 참여전`)
+
+      chat.setRoomId(channelName);
+
+      console.log(`채널 이름: ${channelName}`);
 
       // 채널 참여
       const { uid, token } = await fetch(`${BACKEND_URL}/test/agora/token?channel=${channelName}&uid=${agoraUid}`)
@@ -384,22 +385,6 @@ const AgoraMultiMedia = () => {
       setLocalScreenTrack(null);
       setIsSharing(false);
     }
-  };
-
-  // 추가: 트랙 상태 모니터링 함수
-  const monitorScreenTrack = () => {
-    if (localScreenTrack) {
-      const status = {
-        trackId: localScreenTrack.getTrackId(),
-        enabled: localScreenTrack.enabled,
-        muted: localScreenTrack.muted,
-        isPlaying: localScreenTrack.isPlaying,
-        readyState: localScreenTrack.getMediaStreamTrack()?.readyState
-      };
-      console.log('Screen track status:', status);
-      return status;
-    }
-    return null;
   };
 
   // 오디오 기능

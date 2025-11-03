@@ -10,6 +10,7 @@ export default function useChat({
 }) {
     // 소켓 및 채팅 관련 상태
     const socketRef = useRef(null);
+    const roomIdRef = useRef(initRoomId);
     const [roomId, setRoomId] = useState(initRoomId);
     const [messages, setMessages] = useState([]);
     const [users, setUsers] = useState([]);
@@ -25,9 +26,12 @@ export default function useChat({
 
         return socketRef.current;
     }, [BACKEND_URL]);
+
+    // roomIdRef 동기화 (roomId 상태 변경 시)
+    useEffect(() => { roomIdRef.current = roomId; }, [roomId]);
     
     // 소켓 연결 및 리스너 선언
-    const connect = useCallback(() => {
+    const connect = useCallback((targetRoomId) => {
         const socket = getSocket();
         if(socket.connected) return;
 
@@ -36,10 +40,13 @@ export default function useChat({
         // ------ 리스너들 ------
         socket.on('connect', () => {
             setIsConnected(true);
+            const joinRoomId = targetRoomId || roomIdRef.current;
             console.log("채팅 서버에 연결됨: ", socket.id);
+            console.log("룸 아이디: ", joinRoomId);
             socket.emit('joinClassroom', {
-                roomId,
+                roomId: joinRoomId,
                 email,
+                username,
                 nickname: username,
                 accountType
             });
