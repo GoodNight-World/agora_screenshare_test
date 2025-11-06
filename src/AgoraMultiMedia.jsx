@@ -19,7 +19,7 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const AgoraMultiMedia = () => {
 
   // URL 파라미터에서 사용자 이름 가져오기
-  const { username } = useParams();
+  const { username, email } = useParams();
 
   // Agora 클라이언트 상태
   const [client, setClient] = useState(null);
@@ -52,7 +52,7 @@ const AgoraMultiMedia = () => {
     BACKEND_URL: process.env.REACT_APP_BACKEND_URL,
     initRoomId: 'classroom',
     username,
-    email: ['test@test.com', 'test2@test.com'][Math.floor(Math.random()*2)],
+    email,
     accountType: 'PROFESSOR'
   });
 

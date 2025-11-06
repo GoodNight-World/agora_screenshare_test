@@ -7,7 +7,7 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/:username" element={<AgoraMultiMedia />} />
+        <Route path="/:username/:email" element={<AgoraMultiMedia />} />
       </Routes>
     </Router>
   );
