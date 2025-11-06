@@ -60,7 +60,6 @@ export default function useChat({
         });
 
         socket.on('classChatMessage', (payload) => {
-
             // 메시지 객체 생성
             let newMessage = {
                 id: payload.id,

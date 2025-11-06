@@ -523,7 +523,8 @@ const AgoraMultiMedia = () => {
               border: 'none', 
               borderRadius: '5px',
               cursor: 'pointer',
-              marginRight: '10px'
+              marginRight: '10px',
+              fontWeight: 'bold'
             }}
           >
             채널 참여
@@ -538,7 +539,8 @@ const AgoraMultiMedia = () => {
                 color: 'white',
                 border: 'none',
                 borderRadius: '5px',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                fontWeight: 'bold'
               }}
             >
               채널 떠나기
@@ -554,7 +556,8 @@ const AgoraMultiMedia = () => {
                 color: 'white',
                 border: 'none',
                 borderRadius: '5px',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                fontWeight: 'bold'
               }}
             >
               인원 관리
@@ -572,7 +575,8 @@ const AgoraMultiMedia = () => {
                 color: isSharing ? 'black' : 'white', 
                 border: 'none', 
                 borderRadius: '5px',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                fontWeight: 'bold'
               }}
             >
               {isSharing ? '화면 공유 중지' : '화면 공유 시작'}
@@ -587,7 +591,8 @@ const AgoraMultiMedia = () => {
                 color: 'white', 
                 border: 'none', 
                 borderRadius: '5px',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                fontWeight: 'bold'
               }}
             >
               {isAudioEnabled ? '마이크 끄기' : '마이크 켜기'}
@@ -603,7 +608,8 @@ const AgoraMultiMedia = () => {
                   color: 'white', 
                   border: 'none', 
                   borderRadius: '5px',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
                 }}
               >
                 {!isMuted ? '음소거' : '음소거 해제'}

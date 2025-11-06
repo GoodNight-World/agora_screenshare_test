@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from "react";
 
+// 인원 관리창
 export default function UserControlPanel({ open, users, onKickUser }) {
     const panelRef = useRef(null); // 인원 관리창 Ref
     const DUMMY_COUNT = 50; // 더미 데이터 수

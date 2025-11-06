@@ -1,14 +1,13 @@
 export default function LocalVideoSection({ localVideoRef, isSharing }) {
     return(
-        <div style={{ marginTop: '80px', marginBottom: '30px' }}>
-            <h2>내 미디어</h2>
+        <div style={{ marginTop: '10px', marginBottom: '30px' }}>
             <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
             {/* 화면 공유 */}
             <div>
                 <h3>화면 공유</h3>
                 <div 
                 ref={localVideoRef}
-                style={{ 
+                style={{
                     width: '1280px',
                     height: '720px',
                     backgroundColor: '#000',

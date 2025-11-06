@@ -50,7 +50,7 @@ export default function ChatHeader({ roomId, userCount, ChatLocked, onLockToggle
       }}
     >
       <h3 style={{ marginTop: 10, marginLeft: 10 }}>
-        채팅창 ({roomId}) - 사용자 {userCount}명 {ChatLocked ? "🔒" : "🔓"}
+        채팅창 ({roomId}) - 사용자 {userCount}명 {ChatLocked ? "🔒" : ""}
       </h3>
 
       {/* 점 3개 버튼 */}
@@ -60,17 +60,16 @@ export default function ChatHeader({ roomId, userCount, ChatLocked, onLockToggle
         aria-haspopup="menu"
         aria-expanded={open}
         style={{
-          marginTop: 10,
-          fontSize: 28,
+          marginTop: 0,
+          fontSize: 13,
           background: "transparent",
           border: "none",
           cursor: "pointer",
           marginLeft: "auto",
-          padding: "2px 8px",
-          lineHeight: 1
+          padding: "0px 8px"
         }}
       >
-        ···
+        채팅 잠금 설정
       </button>
 
       {/* 팝업 메뉴 */}

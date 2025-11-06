@@ -1,10 +1,23 @@
 import ChatHeader from "./ChatHeader";
+import { useRef, useEffect } from "react";
 
 export default function ChatPanel({
   roomId, userCount, isChatLocked,
   messages, onSend, onDelete, onLockToggle,
   onEnterPress,
 }) {
+  const chatRef = useRef(null); // 채팅창 DOM 참조
+
+  // messages가 업데이트될 때마다 스크롤 아래로 이동
+  useEffect(() => {
+    if (chatRef.current) {
+      chatRef.current.scrollTo({
+        top: chatRef.current.scrollHeight,
+        behavior: 'smooth', // 부드럽게 스크롤
+      });
+    }
+  }, [messages]);
+
   return (
     <div style={{ padding: 10, border: '1px solid #000', borderRadius: 8 }}>
       {/* 헤더 */}
@@ -26,8 +39,9 @@ export default function ChatPanel({
       />
 
       {/* 메시지 */}
-      <div id="chat">
-        {messages.map((m) => (
+      <div id="chat" ref={chatRef}>
+        {
+        messages.map((m) => (
           <div key={m.id} style={{ marginBottom:8, padding:8, background:'#fff', border:'1px solid #000', borderRadius:4, display:'flex', justifyContent:'space-between' }}>
             <div style={{ flex:1 }}>
               <div style={{ fontWeight:'bold', fontSize:14, marginBottom:2 }}>
@@ -40,7 +54,8 @@ export default function ChatPanel({
               삭제
             </button>
           </div>
-        ))}
+        ))
+        }
       </div>
 
       {/* 입력창 */}
@@ -54,6 +69,7 @@ export default function ChatPanel({
             e.currentTarget.value = '';
           }
           onEnterPress?.(e);
+          
         }}
         style={{ width:'100%', padding:8, boxSizing:'border-box', border:'1px solid' }}
       />
