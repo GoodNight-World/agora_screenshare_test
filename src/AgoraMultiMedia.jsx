@@ -288,7 +288,7 @@ const AgoraMultiMedia = () => {
       await client.publish(publishTracks);
       console.log('화면 트랙 게시 완료');
 
-      screenTrack.on("player-status-change", (evt) => {
+      publishTracks.on("player-status-change", (evt) => {
         console.log('플레이어 상태 변경:', evt);
       });
 
