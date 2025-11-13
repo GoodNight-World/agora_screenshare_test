@@ -288,9 +288,9 @@ const AgoraMultiMedia = () => {
       await client.publish(publishTracks);
       console.log('화면 트랙 게시 완료');
 
-      publishTracks.on("player-status-change", (evt) => {
-        console.log('플레이어 상태 변경:', evt);
-      });
+      // screenVideoTrack.on("player-status-change", (evt) => {
+      //   console.log('플레이어 상태 변경:', evt);
+      // });
 
       // 먼저 채널에 publish (이게 더 안정적)
       console.log('채널에 화면 트랙 게시 중...');
