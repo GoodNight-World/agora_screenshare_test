@@ -26,6 +26,7 @@ const AgoraMultiMedia = () => {
   
   // 트랙 상태
   const [localScreenTrack, setLocalScreenTrack] = useState(null);
+  const [localScreenAudioTrack, setLocalScreenAudioTrack] = useState(null);
   const [localAudioTrack, setLocalAudioTrack] = useState(null);
   const [localCameraTrack, setLocalCameraTrack] = useState(null);
   
@@ -259,39 +260,54 @@ const AgoraMultiMedia = () => {
         optimizationMode: "detail"
       }, "auto");
 
-      const screenTrack = Array.isArray(result) ? result[0] : result;
+      let screenVideoTrack;
+      let screenAudioTrack = null;
+
+      if (Array.isArray(result)) {
+        screenVideoTrack = result[0];
+        screenAudioTrack = result[1] || null;
+      } else {
+        screenVideoTrack = result;
+      }
       
       console.log('화면 트랙 생성 완료:', {
-        trackId: screenTrack.getTrackId(),
-        enabled: screenTrack.enabled,
-        muted: screenTrack.muted
+        trackId: screenVideoTrack.getTrackId(),
+        hasAudio: !!screenAudioTrack
       });
 
       // 트랙 상태 변경 이벤트 리스너 추가
-      screenTrack.on("track-ended", () => {
+      screenVideoTrack.on("track-ended", () => {
         console.log('화면 공유가 종료됨 (사용자 취소 또는 시스템)');
         stopScreenShare();
       });
 
-      screenTrack.on("player-status-change", (evt) => {
-        console.log('플레이어 상태 변경:', evt);
-      });
+      const publishTracks = screenAudioTrack 
+        ? [screenVideoTrack, screenAudioTrack]
+        : [screenVideoTrack];
+      
+      await client.publish(publishTracks);
+      console.log('화면 트랙 게시 완료');
+
+      // screenTrack.on("player-status-change", (evt) => {
+      //   console.log('플레이어 상태 변경:', evt);
+      // });
 
       // 먼저 채널에 publish (이게 더 안정적)
       console.log('채널에 화면 트랙 게시 중...');
-      await client.publish(screenTrack);
+      await client.publish(publishTracks);
       console.log('채널 게시 완료');
 
       // 상태 업데이트
-      setLocalScreenTrack(screenTrack);
+      setLocalScreenTrack(screenVideoTrack);
+      setLocalScreenAudioTrack(screenAudioTrack);
       setIsSharing(true);
 
       // 로컬 재생은 나중에 시도 (선택사항)
       setTimeout(async () => {
-        if (localVideoRef.current && screenTrack) {
+        if (localVideoRef.current && screenVideoTrack) {
           try {
             console.log('로컬 재생 시도...');
-            await screenTrack.play(localVideoRef.current);
+            await screenVideoTrack.play(localVideoRef.current);
             console.log('로컬 재생 성공');
             
             // 비디오 엘리먼트 스타일 조정
@@ -324,7 +340,7 @@ const AgoraMultiMedia = () => {
                     다른 참가자들이 화면을 볼 수 있습니다
                   </div>
                   <div style="font-size: 10px; margin-top: 4px; opacity: 0.6;">
-                    Track ID: ${screenTrack.getTrackId()}
+                    Track ID: ${screenVideoTrack.getTrackId()}
                   </div>
                 </div>
               `;
@@ -351,23 +367,34 @@ const AgoraMultiMedia = () => {
 
   // 중지 함수
   const stopScreenShare = async () => {
-    if (!localScreenTrack) return;
+    if (!localScreenTrack && !localScreenAudioTrack) return;
 
     try {
       console.log('화면 공유 중지 시작...');
       
-      // 이벤트 리스너 제거
-      localScreenTrack.removeAllListeners();
-      
       // unpublish 먼저
       if (client) {
-        await client.unpublish(localScreenTrack);
-        console.log('채널에서 unpublish 완료');
+        const tracks = [];
+        if (localScreenTrack) tracks.push(localScreenTrack);
+        if (localScreenAudioTrack) tracks.push(localScreenAudioTrack);
+
+        if (tracks.length > 0) {
+          await client.unpublish(tracks);
+          console.log('채널에서 unpublish 완료');
+        }
       }
       
       // 트랙 중지 및 해제
-      localScreenTrack.stop();
-      localScreenTrack.close();
+      if (localScreenTrack) {
+        localScreenTrack.removeAllListeners();
+        localScreenTrack.stop();
+        localScreenTrack.close();
+      }
+
+      if (localScreenAudioTrack) {
+        localScreenAudioTrack.stop();
+        localScreenAudioTrack.close();
+      }
       
       console.log('트랙 정리 완료');
       
@@ -377,12 +404,13 @@ const AgoraMultiMedia = () => {
       }
       
       setLocalScreenTrack(null);
+      setLocalScreenAudioTrack(null);
       setIsSharing(false);
-      
     } catch (error) {
       console.error('화면 공유 중지 실패:', error);
       // 강제로 상태 초기화
       setLocalScreenTrack(null);
+      setLocalScreenAudioTrack(null);
       setIsSharing(false);
     }
   };
