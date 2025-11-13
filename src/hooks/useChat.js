@@ -71,7 +71,7 @@ export default function useChat({
                 timestamp: payload.timestamp
             };
 
-            setMessages((prev) => [...prev, newMessage]);
+            setMessages((prev) => [...prev, newMessage].slice(-100));
             console.log('새 채팅 메시지: ', newMessage);
         });
 
