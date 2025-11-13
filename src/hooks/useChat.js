@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { createChatSocket } from "../services/socket";
 
 export default function useChat({
@@ -100,7 +100,7 @@ export default function useChat({
             setIsConnected(false);
             console.log('채팅 서버와 연결 해제됨');
         });
-    }, [getSocket, roomId, email, username, accountType]);
+    }, [getSocket, email, username, accountType]);
 
     // 소켓 연결 해제 함수
     const disconnect = useCallback(() => {

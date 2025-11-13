@@ -3,22 +3,22 @@ import { useRef } from "react";
 // 인원 관리창
 export default function UserControlPanel({ open, users, onKickUser }) {
     const panelRef = useRef(null); // 인원 관리창 Ref
-    const DUMMY_COUNT = 50; // 더미 데이터 수
+    // const DUMMY_COUNT = 50; // 더미 데이터 수
 
     // 더미 유저 생성기
-    const dummyUsers = (() => {
-        const arr = Array.isArray(users) ? [...users] : [];
+    // const dummyUsers = (() => {
+    //     const arr = Array.isArray(users) ? [...users] : [];
 
-        for (let i = 0; i< DUMMY_COUNT; i++){
-            arr.push({
-                id: `dummy-${i}`,
-                nickname: `테스트 유저 ${i + 1}`,
-                username: `user_${i + 1}`
-            });
-        }
+    //     for (let i = 0; i< DUMMY_COUNT; i++){
+    //         arr.push({
+    //             id: `dummy-${i}`,
+    //             nickname: `테스트 유저 ${i + 1}`,
+    //             username: `user_${i + 1}`
+    //         });
+    //     }
 
-        return arr;
-    })();
+    //     return arr;
+    // })();
 
     let userList = users;
 

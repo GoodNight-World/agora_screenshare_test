@@ -12,7 +12,7 @@ import RemoteUserSection from './component/RemoteUserSection.jsx';
 
 // Agora 설정
 const APP_ID = process.env.REACT_APP_AGORA_APP_ID;
-const TOKEN = process.env.REACT_APP_AGORA_APP_TEMP_TOKEN;
+// const TOKEN = process.env.REACT_APP_AGORA_APP_TEMP_TOKEN; 임시토큰
 // 백엔드 서버 URL
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -44,7 +44,7 @@ const AgoraMultiMedia = () => {
   const [isUserPanelOpen, setIsUserPanelOpen] = useState(false); // 인원 관리창 상태
 
   const localVideoRef = useRef(null); // 로컬 비디오 창 Ref
-  const localCameraRef = useRef(null); // 로컬 카메라 창 Ref
+  // const localCameraRef = useRef(null); 로컬 카메라 창 Ref
   const remoteVideoRefs = useRef({}); // 원격 비디오 창 Ref
   // const remoteAudioRefs = useRef({});
   const userControlBtnRef = useRef(null); // 인원 관리 버튼 Ref
@@ -143,7 +143,7 @@ const AgoraMultiMedia = () => {
         agoraClient.removeAllListeners();
       }
     };
-  }, []);
+  }, [channelName]);
 
   // 아고라 Uid, 채널명 상태 업데이트
   useEffect(() => {
@@ -174,12 +174,12 @@ const AgoraMultiMedia = () => {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [localScreenTrack, isSharing]);
+  }, [localScreenTrack, isSharing]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 소켓 연결이 끊겼을 경우(강퇴 당했을 때 발생) 채널 떠나기
   useEffect(() => {
     if(!chat.isConnected) leaveChannel();
-  }, [chat.isConnected]);
+  }, [chat.isConnected]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 채널 참여
   const joinChannel = async () => {
@@ -504,12 +504,17 @@ const AgoraMultiMedia = () => {
     }
   };
 
+
+  /* -------- 자바스크립트 이벤트 핸들러 -------- */
+
+
+
   // 키보드 이벤트 핸들러
-  const onHandleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
-      chat.sendMessage(e.value);
-    }
-  }
+  // const onHandleKeyPress = (e) => {
+  //   if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+  //     chat.sendMessage(e.value);
+  //   }
+  // }
 
   // 인원 관리창 이벤트 핸들러
   const toggleUserControlPanel = async () => {
@@ -522,11 +527,17 @@ const AgoraMultiMedia = () => {
 
     setIsUserPanelOpen(prev => !prev);
   }
-
   // 인원 강퇴 이벤트 핸들러
   const onKickUser = async (socketId) => {
       chat.kickUser(socketId);
   }
+
+
+
+
+
+
+  /* -------- 렌더링 부분 -------- */
 
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
