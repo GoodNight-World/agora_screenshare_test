@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from "react";
+import { useRef } from "react";
 
 // 인원 관리창
 export default function UserControlPanel({ open, users, onKickUser }) {
@@ -41,7 +41,6 @@ export default function UserControlPanel({ open, users, onKickUser }) {
                 overflow: 'hidden',
 
                 /* --- 패널 자체는 block으로 두고, 내부 콘텐츠를 Grid로 --- */
-                display: "grid",
                 gridTemplateRows: "auto 1fr",
                 rowGap: 12
             }}

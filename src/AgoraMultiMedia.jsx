@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import AgoraRTC from 'agora-rtc-sdk-ng';
 import { useParams } from 'react-router-dom';
 import UserGuide from './component/UserGuide';
@@ -463,31 +463,31 @@ const AgoraMultiMedia = () => {
   };
 
   // 카메라 기능
-  const startCamera = async () => {
-    if (!client || !isJoined) {
-      alert('먼저 채널에 참여해주세요.');
-      return;
-    }
+  // const startCamera = async () => {
+  //   if (!client || !isJoined) {
+  //     alert('먼저 채널에 참여해주세요.');
+  //     return;
+  //   }
 
-    try {
-      const cameraTrack = await AgoraRTC.createCameraVideoTrack({
-        encoderConfig: "480p_1",
-      });
+  //   try {
+  //     const cameraTrack = await AgoraRTC.createCameraVideoTrack({
+  //       encoderConfig: "480p_1",
+  //     });
 
-      await client.publish(cameraTrack);
+  //     await client.publish(cameraTrack);
       
-      if (localCameraRef.current) {
-        cameraTrack.play(localCameraRef.current);
-      }
+  //     if (localCameraRef.current) {
+  //       cameraTrack.play(localCameraRef.current);
+  //     }
 
-      setLocalCameraTrack(cameraTrack);
-      setIsCameraEnabled(true);
-      console.log('카메라 활성화됨');
-    } catch (error) {
-      console.error('카메라 활성화 실패:', error);
-      alert('카메라 권한을 확인해주세요.');
-    }
-  };
+  //     setLocalCameraTrack(cameraTrack);
+  //     setIsCameraEnabled(true);
+  //     console.log('카메라 활성화됨');
+  //   } catch (error) {
+  //     console.error('카메라 활성화 실패:', error);
+  //     alert('카메라 권한을 확인해주세요.');
+  //   }
+  // };
   const stopCamera = async () => {
     if (!localCameraTrack) return;
 
@@ -616,7 +616,7 @@ const AgoraMultiMedia = () => {
               style={{ 
                 padding: '10px 20px', 
                 backgroundColor: isAudioEnabled ? '#6f42c1' : '#17a2b8', 
-                color: 'white', 
+                color: 'white',
                 border: 'none', 
                 borderRadius: '5px',
                 cursor: 'pointer',
