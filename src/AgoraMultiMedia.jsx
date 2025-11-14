@@ -40,7 +40,6 @@ const AgoraMultiMedia = () => {
   const [channelName, setChannelName] = useState('classroom');
   const [agoraUid, setAgoraUid] = useState(null);
 
-
   const [isUserPanelOpen, setIsUserPanelOpen] = useState(false); // 인원 관리창 상태
 
   const localVideoRef = useRef(null); // 로컬 비디오 창 Ref
@@ -144,6 +143,23 @@ const AgoraMultiMedia = () => {
       }
     };
   }, [channelName]);
+
+  // 페이지 언로드 시 Agora 클라이언트를 정리하는 용도
+  useEffect(() => {
+    const handleUnload = () => {
+      if (client) {
+        client.leave();
+      }
+    };
+
+    window.addEventListener("beforeunload", handleUnload);
+    window.addEventListener("pagehide", handleUnload); // 모바일/사파리 대응
+
+    return () => {
+      window.removeEventListener("beforeunload", handleUnload);
+      window.removeEventListener("pagehide", handleUnload);
+    };
+  }, [client]);
 
   // 아고라 Uid, 채널명 상태 업데이트
   useEffect(() => {
